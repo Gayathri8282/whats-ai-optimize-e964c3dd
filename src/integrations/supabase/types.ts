@@ -14,7 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      campaigns: {
+        Row: {
+          ai_optimization: boolean
+          audience_count: number | null
+          clicked_count: number | null
+          created_at: string
+          ctr: number | null
+          id: string
+          message_template: string
+          name: string
+          opened_count: number | null
+          schedule_type: string
+          scheduled_time: string | null
+          sent_count: number | null
+          status: string
+          target_audience: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_optimization?: boolean
+          audience_count?: number | null
+          clicked_count?: number | null
+          created_at?: string
+          ctr?: number | null
+          id?: string
+          message_template: string
+          name: string
+          opened_count?: number | null
+          schedule_type?: string
+          scheduled_time?: string | null
+          sent_count?: number | null
+          status?: string
+          target_audience: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_optimization?: boolean
+          audience_count?: number | null
+          clicked_count?: number | null
+          created_at?: string
+          ctr?: number | null
+          id?: string
+          message_template?: string
+          name?: string
+          opened_count?: number | null
+          schedule_type?: string
+          scheduled_time?: string | null
+          sent_count?: number | null
+          status?: string
+          target_audience?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

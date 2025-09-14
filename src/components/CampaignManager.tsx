@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +70,118 @@ const campaigns = [
 export function CampaignManager() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const { toast } = useToast();
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    type: "",
+    messageTemplate: "",
+    targetAudience: "",
+    scheduleType: "now",
+    aiOptimization: true
+  });
+
+  useEffect(() => {
+    // Check if user is authenticated
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) {
+        fetchCampaigns();
+      }
+    };
+    checkUser();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setCampaigns(data || []);
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load campaigns",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateCampaign = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to create campaigns",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!formData.name || !formData.type || !formData.messageTemplate || !formData.targetAudience) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .insert({
+          user_id: user.id,
+          name: formData.name,
+          type: formData.type,
+          message_template: formData.messageTemplate,
+          target_audience: formData.targetAudience,
+          schedule_type: formData.scheduleType,
+          ai_optimization: formData.aiOptimization,
+          audience_count: Math.floor(Math.random() * 20000) + 1000 // Mock audience count
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Campaign created successfully!",
+        variant: "default"
+      });
+
+      setShowCreateDialog(false);
+      setFormData({
+        name: "",
+        type: "",
+        messageTemplate: "",
+        targetAudience: "",
+        scheduleType: "now",
+        aiOptimization: true
+      });
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create campaign",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -77,6 +191,20 @@ export function CampaignManager() {
       default: return "bg-muted text-muted-foreground";
     }
   };
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="p-8 text-center">
+          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+          <p className="text-muted-foreground mb-4">Please sign in to access campaign management</p>
+          <Button onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}>
+            Sign In with Google
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -104,11 +232,16 @@ export function CampaignManager() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="campaign-name">Campaign Name</Label>
-                  <Input id="campaign-name" placeholder="Enter campaign name" />
+                  <Input 
+                    id="campaign-name" 
+                    placeholder="Enter campaign name"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="campaign-type">Campaign Type</Label>
-                  <Select>
+                  <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
@@ -128,6 +261,8 @@ export function CampaignManager() {
                   id="message-template"
                   placeholder="Enter your message template..."
                   rows={4}
+                  value={formData.messageTemplate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, messageTemplate: e.target.value }))}
                 />
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm">
@@ -143,7 +278,7 @@ export function CampaignManager() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="audience">Target Audience</Label>
-                  <Select>
+                  <Select value={formData.targetAudience} onValueChange={(value) => setFormData(prev => ({ ...prev, targetAudience: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select audience" />
                     </SelectTrigger>
@@ -157,7 +292,7 @@ export function CampaignManager() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="schedule">Schedule</Label>
-                  <Select>
+                  <Select value={formData.scheduleType} onValueChange={(value) => setFormData(prev => ({ ...prev, scheduleType: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Send now or schedule" />
                     </SelectTrigger>
@@ -194,8 +329,8 @@ export function CampaignManager() {
                 <Button variant="ghost" onClick={() => setShowCreateDialog(false)}>
                   Cancel
                 </Button>
-                <Button variant="success">
-                  Create Campaign
+                <Button variant="success" onClick={handleCreateCampaign} disabled={isLoading}>
+                  {isLoading ? "Creating..." : "Create Campaign"}
                 </Button>
               </div>
             </div>
@@ -308,34 +443,34 @@ export function CampaignManager() {
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.audience.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">{campaign.audience_count?.toLocaleString() || 0}</div>
                     <div className="text-sm text-muted-foreground">Audience</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.sent.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">{campaign.sent_count?.toLocaleString() || 0}</div>
                     <div className="text-sm text-muted-foreground">Sent</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.opened.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">{campaign.opened_count?.toLocaleString() || 0}</div>
                     <div className="text-sm text-muted-foreground">Opened</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.clicked.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">{campaign.clicked_count?.toLocaleString() || 0}</div>
                     <div className="text-sm text-muted-foreground">Clicked</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-gradient-success">{campaign.ctr}%</div>
+                    <div className="text-2xl font-bold text-gradient-success">{campaign.ctr || 0}%</div>
                     <div className="text-sm text-muted-foreground">CTR</div>
                   </div>
                 </div>
 
-                {campaign.status === "active" && (
+                {campaign.status === "active" && campaign.audience_count > 0 && (
                   <div className="mt-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Campaign Progress</span>
-                      <span>{Math.round((campaign.sent / campaign.audience) * 100)}%</span>
+                      <span>{Math.round((campaign.sent_count / campaign.audience_count) * 100)}%</span>
                     </div>
-                    <Progress value={(campaign.sent / campaign.audience) * 100} />
+                    <Progress value={(campaign.sent_count / campaign.audience_count) * 100} />
                   </div>
                 )}
               </div>
