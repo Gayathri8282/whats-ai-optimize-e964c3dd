@@ -89,6 +89,82 @@ export function CampaignManager() {
     }
   };
 
+  const handleAISuggestions = async () => {
+    if (!formData.type || !formData.targetAudience) {
+      toast({
+        title: "Missing Information",
+        description: "Please select campaign type and target audience first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-campaign', {
+        body: {
+          campaignType: formData.type,
+          targetAudience: formData.targetAudience,
+          businessInfo: "WhatsApp Marketing Platform",
+          goals: "Increase engagement and conversions",
+          tone: "professional and friendly"
+        }
+      });
+
+      if (error) throw error;
+
+      setFormData(prev => ({
+        ...prev,
+        name: data.name || prev.name,
+        messageTemplate: data.messageTemplate || prev.messageTemplate
+      }));
+
+      toast({
+        title: "AI Campaign Generated",
+        description: "Campaign content has been generated successfully!",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error generating campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate campaign content",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSentimentAnalysis = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sentiment-analysis', {
+        body: { text: formData.messageTemplate }
+      });
+
+      if (error) throw error;
+
+      const sentimentColor = data.sentiment === 'positive' ? 'text-success' : 
+                           data.sentiment === 'negative' ? 'text-destructive' : 'text-muted-foreground';
+
+      toast({
+        title: `Sentiment: ${data.sentiment} (${Math.round(data.confidence * 100)}%)`,
+        description: data.explanation,
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error analyzing sentiment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to analyze message sentiment",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleCreateCampaign = async () => {
     if (!user) {
       toast({
@@ -235,12 +311,23 @@ export function CampaignManager() {
                   onChange={(e) => setFormData(prev => ({ ...prev, messageTemplate: e.target.value }))}
                 />
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleAISuggestions}
+                    disabled={isLoading}
+                  >
                     <Brain className="w-4 h-4 mr-1" />
-                    AI Suggestions
+                    AI Generate
                   </Button>
-                  <Button variant="outline" size="sm">
-                    Load Template
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleSentimentAnalysis}
+                    disabled={!formData.messageTemplate || isLoading}
+                  >
+                    <MessageSquare className="w-4 h-4 mr-1" />
+                    Analyze Sentiment
                   </Button>
                 </div>
               </div>

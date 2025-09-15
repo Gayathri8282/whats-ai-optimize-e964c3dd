@@ -72,10 +72,7 @@ export default function Auth() {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`
-          }
+          password
         });
         
         if (error) throw error;
