@@ -24,48 +24,6 @@ import {
   Target,
 } from "lucide-react";
 
-// Mock campaigns data
-const campaigns = [
-  {
-    id: 1,
-    name: "Summer Sale 2024",
-    status: "active",
-    type: "promotional",
-    audience: 15420,
-    sent: 12336,
-    opened: 9869,
-    clicked: 1974,
-    ctr: 19.8,
-    created: "2024-03-15",
-    ai_optimization: true,
-  },
-  {
-    id: 2,
-    name: "Welcome Series",
-    status: "paused",
-    type: "onboarding",
-    audience: 8930,
-    sent: 7144,
-    opened: 5572,
-    clicked: 1114,
-    ctr: 15.6,
-    created: "2024-03-10",
-    ai_optimization: true,
-  },
-  {
-    id: 3,
-    name: "Product Launch",
-    status: "draft",
-    type: "announcement",
-    audience: 22100,
-    sent: 0,
-    opened: 0,
-    clicked: 0,
-    ctr: 0,
-    created: "2024-03-20",
-    ai_optimization: false,
-  },
-];
 
 export function CampaignManager() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -86,15 +44,27 @@ export function CampaignManager() {
   });
 
   useEffect(() => {
-    // Check if user is authenticated
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) {
+    // Set up auth state listener for real-time auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchCampaigns();
+        } else {
+          setCampaigns([]);
+        }
+      }
+    );
+
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
         fetchCampaigns();
       }
-    };
-    checkUser();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const fetchCampaigns = async () => {
@@ -372,7 +342,7 @@ export function CampaignManager() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Audience</p>
                 <p className="text-2xl font-bold">
-                  {campaigns.reduce((sum, c) => sum + c.audience, 0).toLocaleString()}
+                  {campaigns.reduce((sum, c) => sum + (c.audience_count || 0), 0).toLocaleString()}
                 </p>
               </div>
               <Users className="w-8 h-8 text-primary" />
@@ -386,7 +356,7 @@ export function CampaignManager() {
               <div>
                 <p className="text-sm text-muted-foreground">Avg CTR</p>
                 <p className="text-2xl font-bold text-gradient-success">
-                  {(campaigns.reduce((sum, c) => sum + c.ctr, 0) / campaigns.length).toFixed(1)}%
+                  {campaigns.length > 0 ? (campaigns.reduce((sum, c) => sum + (c.ctr || 0), 0) / campaigns.length).toFixed(1) : 0}%
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-success" />
