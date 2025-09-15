@@ -168,8 +168,8 @@ export function CampaignManager() {
         <Card className="p-8 text-center">
           <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
           <p className="text-muted-foreground mb-4">Please sign in to access campaign management</p>
-          <Button onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}>
-            Sign In with Google
+          <Button onClick={() => window.location.href = '/auth'}>
+            Go to Sign In
           </Button>
         </Card>
       </div>
