@@ -14,6 +14,131 @@ export type Database = {
   }
   public: {
     Tables: {
+      ab_test_variations: {
+        Row: {
+          ab_test_id: string
+          audience_count: number | null
+          clicked_count: number | null
+          conversion_count: number | null
+          conversion_rate: number | null
+          created_at: string
+          ctr: number | null
+          id: string
+          message_template: string
+          opened_count: number | null
+          sent_count: number | null
+          updated_at: string
+          variation_name: string
+        }
+        Insert: {
+          ab_test_id: string
+          audience_count?: number | null
+          clicked_count?: number | null
+          conversion_count?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          ctr?: number | null
+          id?: string
+          message_template: string
+          opened_count?: number | null
+          sent_count?: number | null
+          updated_at?: string
+          variation_name: string
+        }
+        Update: {
+          ab_test_id?: string
+          audience_count?: number | null
+          clicked_count?: number | null
+          conversion_count?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          ctr?: number | null
+          id?: string
+          message_template?: string
+          opened_count?: number | null
+          sent_count?: number | null
+          updated_at?: string
+          variation_name?: string
+        }
+        Relationships: []
+      }
+      ab_tests: {
+        Row: {
+          campaign_id: string
+          confidence_level: number | null
+          created_at: string
+          id: string
+          name: string
+          status: string
+          traffic_split: number
+          updated_at: string
+          winner_variation: string | null
+        }
+        Insert: {
+          campaign_id: string
+          confidence_level?: number | null
+          created_at?: string
+          id?: string
+          name: string
+          status?: string
+          traffic_split?: number
+          updated_at?: string
+          winner_variation?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          confidence_level?: number | null
+          created_at?: string
+          id?: string
+          name?: string
+          status?: string
+          traffic_split?: number
+          updated_at?: string
+          winner_variation?: string | null
+        }
+        Relationships: []
+      }
+      campaign_metrics: {
+        Row: {
+          campaign_id: string | null
+          clicked_count: number | null
+          conversion_count: number | null
+          delivered_count: number | null
+          id: string
+          opened_count: number | null
+          sent_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          clicked_count?: number | null
+          conversion_count?: number | null
+          delivered_count?: number | null
+          id?: string
+          opened_count?: number | null
+          sent_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          clicked_count?: number | null
+          conversion_count?: number | null
+          delivered_count?: number | null
+          id?: string
+          opened_count?: number | null
+          sent_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_metrics_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           ai_optimization: boolean
@@ -71,6 +196,30 @@ export type Database = {
           type?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      contacts: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          phone: string
+          segment: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          phone: string
+          segment?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          phone?: string
+          segment?: string
         }
         Relationships: []
       }
