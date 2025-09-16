@@ -379,6 +379,11 @@ export function CampaignManager() {
                     <input type="checkbox" defaultChecked className="rounded" />
                     Personalize content using RAG
                   </label>
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground">
+                      💡 Tip: Use the A/B Testing tab to create detailed tests with custom variations and traffic splits.
+                    </p>
+                  </div>
                 </div>
               </div>
 
