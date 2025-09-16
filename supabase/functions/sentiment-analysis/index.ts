@@ -1,8 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -26,53 +24,48 @@ serve(async (req) => {
 
     console.log('Analyzing sentiment for text:', text);
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a sentiment analysis expert. Analyze the sentiment of the given text and return a JSON response with: sentiment (positive/negative/neutral), confidence (0-1), and a brief explanation.' 
-          },
-          { role: 'user', content: `Analyze the sentiment of this text: "${text}"` }
-        ],
-        max_tokens: 150,
-        temperature: 0.3,
+        inputs: text
       }),
     });
 
     if (!response.ok) {
-      console.error('OpenAI API error:', response.status, response.statusText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('Hugging Face API error:', response.status, response.statusText);
+      throw new Error(`Hugging Face API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const analysis = data.choices[0].message.content;
-
-    try {
-      const parsedAnalysis = JSON.parse(analysis);
-      console.log('Sentiment analysis result:', parsedAnalysis);
+    
+    // Transform Hugging Face response to our format
+    const result = data[0];
+    let sentiment = 'neutral';
+    let confidence = 0.5;
+    
+    if (result && result.length > 0) {
+      const topResult = result.reduce((max: any, curr: any) => curr.score > max.score ? curr : max);
+      confidence = topResult.score;
       
-      return new Response(JSON.stringify(parsedAnalysis), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } catch (parseError) {
-      console.error('Failed to parse OpenAI response:', analysis);
-      
-      // Fallback response if OpenAI doesn't return valid JSON
-      return new Response(JSON.stringify({
-        sentiment: 'neutral',
-        confidence: 0.5,
-        explanation: analysis
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      if (topResult.label === 'LABEL_0') sentiment = 'negative';
+      else if (topResult.label === 'LABEL_1') sentiment = 'neutral';
+      else if (topResult.label === 'LABEL_2') sentiment = 'positive';
     }
+
+    const analysis = {
+      sentiment,
+      confidence,
+      explanation: `Text classified as ${sentiment} with ${Math.round(confidence * 100)}% confidence`
+    };
+
+    console.log('Sentiment analysis result:', analysis);
+    
+    return new Response(JSON.stringify(analysis), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
     console.error('Error in sentiment-analysis function:', error);

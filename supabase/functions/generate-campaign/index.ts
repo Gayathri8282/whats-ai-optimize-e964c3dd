@@ -1,8 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -32,77 +30,106 @@ serve(async (req) => {
 
     console.log('Generating campaign for:', { campaignType, targetAudience, businessInfo, goals, tone });
 
-    const systemPrompt = `You are an expert WhatsApp marketing campaign generator. Create effective, engaging campaigns that follow best practices for WhatsApp marketing.
+    const prompt = `Generate a ${campaignType} WhatsApp marketing campaign for ${targetAudience}.
 
-Key guidelines:
-- Keep messages concise and personal (WhatsApp style)
-- Include clear call-to-action
-- Use emojis appropriately
-- Follow WhatsApp marketing best practices
-- Avoid spam-like content
-- Focus on value and relationship building
-
-Return a JSON response with:
-- name: Campaign name
-- messageTemplate: The main message template
-- variations: Array of 2-3 message variations for A/B testing
-- bestPractices: Array of tips for this campaign
-- estimatedEngagement: Predicted engagement metrics`;
-
-    const userPrompt = `Generate a ${campaignType} WhatsApp marketing campaign for ${targetAudience}.
-    
 Business info: ${businessInfo || 'Not provided'}
 Goals: ${goals || 'Increase engagement and conversions'}
 Tone: ${tone || 'professional and friendly'}
 
-Create an effective campaign that will resonate with this audience.`;
+Create an effective campaign with:
+- A catchy campaign name
+- A main message template (keep it concise and personal for WhatsApp)
+- Include clear call-to-action
+- Use emojis appropriately
+- Follow WhatsApp marketing best practices
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+Example format:
+Campaign Name: "New Customer Welcome"
+Message: "Hi [Name]! 👋 Welcome to [Business]! We're excited to have you. Here's 20% off your first order: [LINK] Reply STOP to opt-out."`;
+
+    const response = await fetch('https://api-inference.huggingface.co/models/microsoft/DialoGPT-large', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: 1000,
-        temperature: 0.7,
+        inputs: prompt,
+        parameters: {
+          max_length: 500,
+          temperature: 0.7,
+          do_sample: true
+        }
       }),
     });
 
     if (!response.ok) {
-      console.error('OpenAI API error:', response.status, response.statusText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('Hugging Face API error:', response.status, response.statusText);
+      throw new Error(`Hugging Face API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const generatedContent = data.choices[0].message.content;
+    let generatedContent = '';
+    
+    if (data && data[0] && data[0].generated_text) {
+      generatedContent = data[0].generated_text;
+    } else {
+      // Fallback content generation
+      generatedContent = `Campaign Name: ${campaignType} Campaign for ${targetAudience}
+      
+Message Template: Hi there! 👋 We have exciting ${campaignType} news for our ${targetAudience} customers. 
 
-    try {
-      const parsedContent = JSON.parse(generatedContent);
-      console.log('Generated campaign:', parsedContent);
-      
-      return new Response(JSON.stringify(parsedContent), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } catch (parseError) {
-      console.error('Failed to parse OpenAI response:', generatedContent);
-      
-      // Fallback response if OpenAI doesn't return valid JSON
-      return new Response(JSON.stringify({
-        name: `${campaignType} Campaign for ${targetAudience}`,
-        messageTemplate: generatedContent,
-        variations: [generatedContent],
-        bestPractices: ["Keep messages personal and engaging", "Include clear call-to-action", "Test different variations"],
-        estimatedEngagement: { openRate: "65%", responseRate: "15%", clickRate: "8%" }
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+${campaignType === 'promotional' ? '🎉 Special offer just for you!' : ''}
+${campaignType === 'announcement' ? '📢 Important update!' : ''}
+${campaignType === 'survey' ? '🗣️ We value your opinion!' : ''}
+
+Tap here to learn more: [LINK]
+
+Reply STOP to unsubscribe.`;
     }
+
+    // Parse and structure the response
+    const lines = generatedContent.split('\n').filter(line => line.trim());
+    let name = `${campaignType} Campaign for ${targetAudience}`;
+    let messageTemplate = generatedContent;
+    
+    // Extract campaign name if present
+    const nameMatch = generatedContent.match(/Campaign Name:?\s*(.+)/i);
+    if (nameMatch) {
+      name = nameMatch[1].replace(/"/g, '').trim();
+    }
+    
+    // Extract message template if present
+    const messageMatch = generatedContent.match(/Message:?\s*(.+?)(?=\n\n|$)/is);
+    if (messageMatch) {
+      messageTemplate = messageMatch[1].trim();
+    }
+
+    const structuredResponse = {
+      name,
+      messageTemplate,
+      variations: [
+        messageTemplate,
+        messageTemplate.replace('Hi there!', 'Hello!'),
+        messageTemplate.replace('👋', '✨')
+      ],
+      bestPractices: [
+        "Keep messages personal and engaging",
+        "Include clear call-to-action", 
+        "Test different variations",
+        "Use emojis appropriately"
+      ],
+      estimatedEngagement: { 
+        openRate: "65%", 
+        responseRate: "15%", 
+        clickRate: "8%" 
+      }
+    };
+
+    console.log('Generated campaign:', structuredResponse);
+    
+    return new Response(JSON.stringify(structuredResponse), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
     console.error('Error in generate-campaign function:', error);
