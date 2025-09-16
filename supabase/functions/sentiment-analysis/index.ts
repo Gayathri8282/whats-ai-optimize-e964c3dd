@@ -24,41 +24,34 @@ serve(async (req) => {
 
     console.log('Analyzing sentiment for text:', text);
 
-    const response = await fetch('https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: text
-      }),
+    // Simple rule-based sentiment analysis
+    const positiveWords = ['good', 'great', 'excellent', 'amazing', 'awesome', 'fantastic', 'wonderful', 'perfect', 'love', 'like', 'happy', 'excited', 'best', 'incredible', 'outstanding', 'brilliant', 'superb', 'discount', 'off', 'sale', 'free', 'bonus', 'reward', 'win', 'congratulations'];
+    const negativeWords = ['bad', 'terrible', 'awful', 'horrible', 'hate', 'dislike', 'angry', 'frustrated', 'worst', 'disgusting', 'annoying', 'disappointing', 'useless', 'broken', 'failed', 'problem', 'issue', 'error', 'complaint', 'cancel'];
+    
+    const words = text.toLowerCase().split(/\s+/);
+    let positiveCount = 0;
+    let negativeCount = 0;
+    
+    words.forEach(word => {
+      if (positiveWords.some(pos => word.includes(pos))) positiveCount++;
+      if (negativeWords.some(neg => word.includes(neg))) negativeCount++;
     });
-
-    if (!response.ok) {
-      console.error('Hugging Face API error:', response.status, response.statusText);
-      throw new Error(`Hugging Face API error: ${response.status}`);
-    }
-
-    const data = await response.json();
     
-    // Transform Hugging Face response to our format
-    const result = data[0];
     let sentiment = 'neutral';
-    let confidence = 0.5;
+    let confidence = 0.6;
     
-    if (result && result.length > 0) {
-      const topResult = result.reduce((max: any, curr: any) => curr.score > max.score ? curr : max);
-      confidence = topResult.score;
-      
-      if (topResult.label === 'LABEL_0') sentiment = 'negative';
-      else if (topResult.label === 'LABEL_1') sentiment = 'neutral';
-      else if (topResult.label === 'LABEL_2') sentiment = 'positive';
+    if (positiveCount > negativeCount) {
+      sentiment = 'positive';
+      confidence = Math.min(0.9, 0.6 + (positiveCount - negativeCount) * 0.1);
+    } else if (negativeCount > positiveCount) {
+      sentiment = 'negative';
+      confidence = Math.min(0.9, 0.6 + (negativeCount - positiveCount) * 0.1);
     }
 
     const analysis = {
       sentiment,
       confidence,
-      explanation: `Text classified as ${sentiment} with ${Math.round(confidence * 100)}% confidence`
+      explanation: `Text classified as ${sentiment} with ${Math.round(confidence * 100)}% confidence based on keyword analysis`
     };
 
     console.log('Sentiment analysis result:', analysis);

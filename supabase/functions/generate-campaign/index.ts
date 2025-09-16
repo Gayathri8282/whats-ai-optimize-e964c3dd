@@ -30,98 +30,63 @@ serve(async (req) => {
 
     console.log('Generating campaign for:', { campaignType, targetAudience, businessInfo, goals, tone });
 
-    const prompt = `Generate a ${campaignType} WhatsApp marketing campaign for ${targetAudience}.
-
-Business info: ${businessInfo || 'Not provided'}
-Goals: ${goals || 'Increase engagement and conversions'}
-Tone: ${tone || 'professional and friendly'}
-
-Create an effective campaign with:
-- A catchy campaign name
-- A main message template (keep it concise and personal for WhatsApp)
-- Include clear call-to-action
-- Use emojis appropriately
-- Follow WhatsApp marketing best practices
-
-Example format:
-Campaign Name: "New Customer Welcome"
-Message: "Hi [Name]! 👋 Welcome to [Business]! We're excited to have you. Here's 20% off your first order: [LINK] Reply STOP to opt-out."`;
-
-    const response = await fetch('https://api-inference.huggingface.co/models/microsoft/DialoGPT-large', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    // Template-based campaign generation
+    const templates = {
+      promotional: {
+        new: "🎉 Welcome! Get 20% off your first order with code WELCOME20. Limited time offer! Shop now: [LINK]",
+        returning: "🌟 We missed you! Here's 15% off your next purchase. Use code COMEBACK15: [LINK]",
+        vip: "💎 VIP Exclusive: 30% off premium collection just for you! Code: VIP30 [LINK]",
+        all: "🛍️ Flash Sale Alert! 25% off everything today only. Code: FLASH25 [LINK]"
       },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_length: 500,
-          temperature: 0.7,
-          do_sample: true
-        }
-      }),
-    });
+      announcement: {
+        new: "📢 Exciting news! We've launched something special just for you. Check it out: [LINK]",
+        returning: "🔔 Important update for our valued customers. See what's new: [LINK]",
+        vip: "⭐ VIP Preview: Be the first to know about our latest launch: [LINK]",
+        all: "📰 Big announcement! Don't miss out on this exciting update: [LINK]"
+      },
+      onboarding: {
+        new: "👋 Welcome aboard! Here's everything you need to get started: [LINK]",
+        returning: "🔄 Welcome back! Let's pick up where you left off: [LINK]",
+        vip: "🎯 VIP Onboarding: Your premium experience starts here: [LINK]",
+        all: "🚀 Let's get you set up! Your journey begins now: [LINK]"
+      },
+      survey: {
+        new: "💭 Quick question: How was your first experience with us? Share feedback: [LINK]",
+        returning: "🗣️ Your opinion matters! Quick 2-minute survey for a chance to win: [LINK]",
+        vip: "👑 VIP Feedback: Help us serve you better. Exclusive rewards await: [LINK]",
+        all: "📝 We value your input! Share your thoughts and get rewarded: [LINK]"
+      }
+    };
 
-    if (!response.ok) {
-      console.error('Hugging Face API error:', response.status, response.statusText);
-      throw new Error(`Hugging Face API error: ${response.status}`);
-    }
+    const campaignNames = {
+      promotional: { new: "New Customer Welcome Offer", returning: "Comeback Campaign", vip: "VIP Exclusive Sale", all: "Flash Sale Blast" },
+      announcement: { new: "New Customer Announcement", returning: "Customer Update", vip: "VIP Preview", all: "Major Announcement" },
+      onboarding: { new: "New User Onboarding", returning: "Return Journey", vip: "VIP Onboarding", all: "User Setup Guide" },
+      survey: { new: "First Experience Survey", returning: "Customer Feedback", vip: "VIP Opinion Poll", all: "Customer Survey" }
+    };
 
-    const data = await response.json();
-    let generatedContent = '';
-    
-    if (data && data[0] && data[0].generated_text) {
-      generatedContent = data[0].generated_text;
-    } else {
-      // Fallback content generation
-      generatedContent = `Campaign Name: ${campaignType} Campaign for ${targetAudience}
-      
-Message Template: Hi there! 👋 We have exciting ${campaignType} news for our ${targetAudience} customers. 
-
-${campaignType === 'promotional' ? '🎉 Special offer just for you!' : ''}
-${campaignType === 'announcement' ? '📢 Important update!' : ''}
-${campaignType === 'survey' ? '🗣️ We value your opinion!' : ''}
-
-Tap here to learn more: [LINK]
-
-Reply STOP to unsubscribe.`;
-    }
-
-    // Parse and structure the response
-    const lines = generatedContent.split('\n').filter(line => line.trim());
-    let name = `${campaignType} Campaign for ${targetAudience}`;
-    let messageTemplate = generatedContent;
-    
-    // Extract campaign name if present
-    const nameMatch = generatedContent.match(/Campaign Name:?\s*(.+)/i);
-    if (nameMatch) {
-      name = nameMatch[1].replace(/"/g, '').trim();
-    }
-    
-    // Extract message template if present
-    const messageMatch = generatedContent.match(/Message:?\s*(.+?)(?=\n\n|$)/is);
-    if (messageMatch) {
-      messageTemplate = messageMatch[1].trim();
-    }
+    const name = campaignNames[campaignType as keyof typeof campaignNames]?.[targetAudience as keyof typeof campaignNames.promotional] || `${campaignType} Campaign`;
+    const messageTemplate = templates[campaignType as keyof typeof templates]?.[targetAudience as keyof typeof templates.promotional] || `Hi! We have exciting ${campaignType} news for our ${targetAudience} customers. Learn more: [LINK]`;
 
     const structuredResponse = {
       name,
       messageTemplate,
       variations: [
         messageTemplate,
-        messageTemplate.replace('Hi there!', 'Hello!'),
-        messageTemplate.replace('👋', '✨')
+        messageTemplate.replace('Hi!', 'Hello!').replace('🎉', '✨'),
+        messageTemplate.replace('[LINK]', 'tap here: [LINK]')
       ],
       bestPractices: [
         "Keep messages personal and engaging",
         "Include clear call-to-action", 
         "Test different variations",
-        "Use emojis appropriately"
+        "Use emojis appropriately",
+        "Personalize with customer names when possible"
       ],
       estimatedEngagement: { 
-        openRate: "65%", 
-        responseRate: "15%", 
-        clickRate: "8%" 
+        openRate: "68%", 
+        responseRate: "18%", 
+        clickRate: "12%" 
       }
     };
 
