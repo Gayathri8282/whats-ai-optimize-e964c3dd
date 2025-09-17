@@ -25,6 +25,7 @@ const navigationItems = [
   { id: "campaigns", label: "Campaigns", icon: Target },
   { id: "ab-testing", label: "A/B Testing", icon: TestTube },
   { id: "templates", label: "Templates", icon: FileText },
+  { id: "results", label: "Results", icon: TrendingUp },
   { id: "customers", label: "Customers", icon: Users },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "chat-preview", label: "Chat Preview", icon: MessageSquare },

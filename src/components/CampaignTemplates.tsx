@@ -301,16 +301,28 @@ export function CampaignTemplates() {
   };
 
   const handleSendCampaign = async () => {
-    if (!selectedTemplate) return;
+    if (!selectedTemplate) {
+      console.log('No template selected');
+      return;
+    }
 
     const eligibleCustomers = selectAllCustomers 
       ? customers.filter(c => !c.opt_out)
       : customers.filter(c => selectedCustomers.includes(c.id) && !c.opt_out);
 
+    console.log('Eligible customers:', {
+      total: customers.length,
+      eligible: eligibleCustomers.length,
+      selectAll: selectAllCustomers,
+      selectedCount: selectedCustomers.length
+    });
+
     if (eligibleCustomers.length === 0) {
       toast({
         title: "No Recipients Selected",
-        description: "Please select customers to send the campaign to",
+        description: customers.length === 0 
+          ? "Please generate sample data first from the Dashboard" 
+          : "Please select customers to send the campaign to",
         variant: "destructive"
       });
       return;
@@ -321,8 +333,11 @@ export function CampaignTemplates() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
+        console.log('No user found');
         throw new Error("Please log in to send campaigns");
       }
+
+      console.log('User authenticated:', user.id);
 
       const finalSubject = replaceVariables(editedSubject);
       const finalContent = replaceVariables(editedContent);
@@ -337,21 +352,31 @@ export function CampaignTemplates() {
         sendToAll: selectAllCustomers
       };
 
-      console.log('Sending campaign:', { 
+      console.log('Sending campaign request:', { 
         channel: selectedChannel, 
         template: selectedTemplate.name,
-        customerCount: eligibleCustomers.length 
+        customerCount: eligibleCustomers.length,
+        sendToAll: selectAllCustomers,
+        selectedCustomerIds: selectedCustomers.length
       });
 
       // Call the appropriate edge function
       const functionName = selectedChannel === 'whatsapp' ? 'send-whatsapp' : 'send-email';
+      console.log(`Calling edge function: ${functionName}`);
+      
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: sendRequest
       });
 
-      if (error) throw error;
+      console.log('Edge function response:', { data, error });
 
-      if (data.success) {
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (data?.success) {
+        console.log('Campaign sent successfully:', data.results);
         setSendResults(data.results);
         setShowResults(true);
         
@@ -360,7 +385,8 @@ export function CampaignTemplates() {
           description: `Sent: ${data.results.sent}, Failed: ${data.results.failed}${data.results.optedOut > 0 ? `, Opted out: ${data.results.optedOut}` : ''}`,
         });
       } else {
-        throw new Error(data.error || 'Failed to send campaign');
+        console.error('Campaign failed:', data);
+        throw new Error(data?.error || 'Failed to send campaign');
       }
 
     } catch (error) {

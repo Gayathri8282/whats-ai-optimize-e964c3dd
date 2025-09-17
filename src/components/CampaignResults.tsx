@@ -139,7 +139,10 @@ export function CampaignResults() {
                 <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-semibold mb-2">No Campaign Logs</h3>
                 <p className="text-muted-foreground text-sm">
-                  Send campaigns to see results here
+                  {campaignLogs.length === 0 
+                    ? "Send your first campaign from Templates to see results here"
+                    : "No campaigns match your current filters"
+                  }
                 </p>
               </div>
             ) : (

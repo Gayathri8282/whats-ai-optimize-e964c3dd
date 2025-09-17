@@ -4,6 +4,7 @@ import { Dashboard } from "@/components/Dashboard";
 import { DataDrivenDashboard } from "@/components/DataDrivenDashboard";
 import { CampaignManager } from "@/components/CampaignManager";
 import { CampaignTemplates } from "@/components/CampaignTemplates";
+import { CampaignResults } from "@/components/CampaignResults";
 import { ABTesting } from "@/components/ABTesting";
 import { Analytics } from "@/components/Analytics";
 import { CustomerManagement } from "@/components/CustomerManagement";
@@ -26,6 +27,8 @@ const Index = () => {
         return <Analytics />;
       case "templates":
         return <CampaignTemplates />;
+      case "results":
+        return <CampaignResults />;
       case "customers":
         return <CustomerManagement />;
       case "chat-preview":
