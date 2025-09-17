@@ -252,14 +252,30 @@ export function useCustomers(limit: number = 50) {
         .select()
         .single();
 
-      if (error) throw error;
-
-      // Refresh the customers list
-      await fetchCustomers();
-      
-      return data;
+      if (error === null) {
+        toast({
+          title: "Customer Updated",
+          description: `${customerData.full_name || 'Customer'} has been updated successfully`,
+        });
+        
+        // Refresh the customers list
+        await fetchCustomers();
+        return data;
+      } else {
+        toast({
+          title: "Error Updating Customer",
+          description: error.message || "Failed to update customer",
+          variant: "destructive"
+        });
+        throw error;
+      }
     } catch (err) {
       console.error('Error updating customer:', err);
+      toast({
+        title: "Error Updating Customer",
+        description: err instanceof Error ? err.message : "Failed to update customer",
+        variant: "destructive"
+      });
       throw err;
     }
   };
@@ -277,14 +293,30 @@ export function useCustomers(limit: number = 50) {
         .eq('id', customerId)
         .eq('user_id', user.id);
 
-      if (error) throw error;
-
-      // Refresh the customers list
-      await fetchCustomers();
-      
-      return true;
+      if (error === null) {
+        toast({
+          title: "Customer Deleted",
+          description: "Customer has been deleted successfully",
+        });
+        
+        // Refresh the customers list
+        await fetchCustomers();
+        return true;
+      } else {
+        toast({
+          title: "Error Deleting Customer",
+          description: error.message || "Failed to delete customer",
+          variant: "destructive"
+        });
+        throw error;
+      }
     } catch (err) {
       console.error('Error deleting customer:', err);
+      toast({
+        title: "Error Deleting Customer",
+        description: err instanceof Error ? err.message : "Failed to delete customer",
+        variant: "destructive"
+      });
       throw err;
     }
   };

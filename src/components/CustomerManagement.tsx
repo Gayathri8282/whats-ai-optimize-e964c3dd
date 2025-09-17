@@ -73,16 +73,9 @@ export function CustomerManagement() {
   const handleDeleteCustomer = async (customerId: string) => {
     try {
       await deleteCustomer(customerId);
-      toast({
-        title: "Customer Deleted",
-        description: "Customer has been successfully deleted",
-      });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete customer",
-        variant: "destructive"
-      });
+      // Error handling is now managed by the hook
+      console.error('Error deleting customer:', error);
     }
   };
 

@@ -180,8 +180,10 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
       newErrors.phone = "Phone is required";
     } else {
       const fullPhone = formatPhoneNumber(phoneNumber, selectedCountryCode);
-      if (!validateInternationalPhone(fullPhone)) {
-        newErrors.phone = "Invalid phone number format";
+      // E.164 format validation: +[country code][number] (6-14 digits after country code)
+      const e164Regex = /^\+[1-9]\d{6,14}$/;
+      if (!e164Regex.test(fullPhone)) {
+        newErrors.phone = "Invalid phone number format (use E.164 format: +919876543210)";
       }
     }
 
@@ -419,6 +421,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
                 <div className="flex-1">
                   <Input
                     id="phone"
+                    type="tel"
                     value={phoneNumber}
                     onChange={(e) => handlePhoneChange(e.target.value)}
                     placeholder="Enter phone number"
