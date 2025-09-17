@@ -334,56 +334,73 @@ export function CampaignTemplates() {
     const finalSubject = replaceVariables(editedSubject);
     const finalContent = replaceVariables(editedContent);
 
-    // WhatsApp URL-based sending
+    // WhatsApp URL-based sending (no API calls)
     if (selectedChannel === 'whatsapp') {
-      const results: any = {
-        total: eligibleCustomers.length,
-        sent: 0,
-        failed: 0,
-        optedOut: 0,
-        details: []
-      };
-
       try {
         setIsSending(true);
         
-        // Open WhatsApp URLs for each customer
+        const results = {
+          total: eligibleCustomers.length,
+          sent: eligibleCustomers.length,
+          failed: 0,
+          optedOut: 0,
+          details: eligibleCustomers.map(customer => ({
+            customer: customer.full_name,
+            phone: customer.phone,
+            status: 'sent'
+          }))
+        };
+
+        // Open WhatsApp URLs for each customer with delay
         eligibleCustomers.forEach((customer, index) => {
           setTimeout(() => {
+            // Clean phone number (remove + if present)
             const phone = customer.phone.startsWith('+') ? customer.phone.slice(1) : customer.phone;
+            
+            // Create WhatsApp deep link URL
             const encodedMessage = encodeURIComponent(finalContent);
             const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
             
-            // Open URL in new tab
-            window.open(whatsappUrl, '_blank');
+            console.log(`Opening WhatsApp for ${customer.full_name}: ${whatsappUrl}`);
             
-            results.sent++;
-            results.details.push({
-              customer: customer.full_name,
-              phone: customer.phone,
-              status: 'sent',
-              whatsappUrl: whatsappUrl
-            });
-          }, index * 1000); // Delay each URL opening by 1 second
+            // Open in new tab/window
+            const newWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+            
+            // Fallback for popup blockers
+            if (!newWindow || newWindow.closed) {
+              // Create a temporary link and click it
+              const link = document.createElement('a');
+              link.href = whatsappUrl;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+          }, index * 800); // 800ms delay between each URL
         });
 
+        // Show results immediately (since we're not waiting for API responses)
         setSendResults(results);
         setShowResults(true);
         
         toast({
-          title: "WhatsApp URLs Opened! 📱",
-          description: `Opening ${eligibleCustomers.length} WhatsApp conversations. Check your browser tabs.`,
+          title: "WhatsApp Links Opening! 📱",
+          description: `Opening ${eligibleCustomers.length} WhatsApp conversations. Check your browser for new tabs.`,
         });
 
       } catch (error) {
         console.error('WhatsApp URL opening error:', error);
         toast({
           title: "WhatsApp Opening Failed",
-          description: "Failed to open WhatsApp URLs. Please try again.",
+          description: "Failed to open WhatsApp URLs. Please check your browser's popup settings.",
           variant: "destructive"
         });
       } finally {
-        setIsSending(false);
+        // Set a delay before re-enabling the button
+        setTimeout(() => {
+          setIsSending(false);
+        }, 2000);
       }
       return;
     }
