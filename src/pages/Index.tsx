@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
+import { DataDrivenDashboard } from "@/components/DataDrivenDashboard";
 import { CampaignManager } from "@/components/CampaignManager";
 import { ABTesting } from "@/components/ABTesting";
 import { Analytics } from "@/components/Analytics";
+import { CustomerManagement } from "@/components/CustomerManagement";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -11,7 +13,7 @@ const Index = () => {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard />;
+        return <DataDrivenDashboard />;
       case "campaigns":
         return <CampaignManager />;
       case "ab-testing":
@@ -21,7 +23,7 @@ const Index = () => {
       case "templates":
         return <div className="p-8 text-center"><h2 className="text-2xl font-bold">Templates Management</h2><p className="text-muted-foreground">Coming soon...</p></div>;
       case "customers":
-        return <div className="p-8 text-center"><h2 className="text-2xl font-bold">Customer Management</h2><p className="text-muted-foreground">Coming soon...</p></div>;
+        return <CustomerManagement />;
       case "chat-preview":
         return <div className="p-8 text-center"><h2 className="text-2xl font-bold">Chat Preview</h2><p className="text-muted-foreground">Coming soon...</p></div>;
       case "compliance":
@@ -29,7 +31,7 @@ const Index = () => {
       case "settings":
         return <div className="p-8 text-center"><h2 className="text-2xl font-bold">Settings</h2><p className="text-muted-foreground">Coming soon...</p></div>;
       default:
-        return <Dashboard />;
+        return <DataDrivenDashboard />;
     }
   };
 

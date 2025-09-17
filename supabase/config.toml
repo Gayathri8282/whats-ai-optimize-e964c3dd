@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.start-ab-test]
 verify_jwt = false
 
+[functions.generate-sample-data]
+verify_jwt = false
+
 [storage]
 enabled = true
 port = 54323
