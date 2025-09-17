@@ -427,6 +427,48 @@ export type Database = {
         }
         Relationships: []
       }
+      product_details: {
+        Row: {
+          benefits: string | null
+          campaign_id: string | null
+          created_at: string
+          description: string | null
+          features: string | null
+          id: string
+          name: string
+          offer: string | null
+          price: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          benefits?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          description?: string | null
+          features?: string | null
+          id?: string
+          name: string
+          offer?: string | null
+          price?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          benefits?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          description?: string | null
+          features?: string | null
+          id?: string
+          name?: string
+          offer?: string | null
+          price?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

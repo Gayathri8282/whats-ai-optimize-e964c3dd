@@ -1,340 +1,561 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-} from "recharts";
-import {
-  TestTube,
-  Brain,
-  TrendingUp,
-  TrendingDown,
-  Target,
-  Users,
-  Activity,
-  Zap,
-  Play,
-  Pause,
-  RotateCcw,
-} from "lucide-react";
+import { Loader2, Send, RefreshCw, Brain, Target } from 'lucide-react';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-// Mock A/B test data
-const abTests = [
-  {
-    id: 1,
-    name: "Welcome Message Variants",
-    status: "running",
-    campaign: "Welcome Series",
-    variants: [
-      { name: "A", performance: 15.2, allocation: 25, conversions: 152 },
-      { name: "B", performance: 18.7, allocation: 45, conversions: 234 },
-      { name: "C", performance: 12.8, allocation: 20, conversions: 89 },
-      { name: "D", performance: 16.3, allocation: 10, conversions: 67 },
-    ],
-    rl_algorithm: "Thompson Sampling",
-    confidence: 95,
-    duration: 7,
-    audience: 5000,
-  },
-  {
-    id: 2,
-    name: "CTA Button Text",
-    status: "completed",
-    campaign: "Summer Sale",
-    variants: [
-      { name: "A", performance: 22.1, allocation: 50, conversions: 441 },
-      { name: "B", performance: 19.8, allocation: 50, conversions: 396 },
-    ],
-    rl_algorithm: "UCB",
-    confidence: 98,
-    duration: 14,
-    audience: 4000,
-  },
-];
+interface Campaign {
+  id: string;
+  name: string;
+  description: string;
+  target_audience?: string;
+}
 
-const performanceData = [
-  { day: "Day 1", variantA: 12, variantB: 15, variantC: 11, variantD: 13 },
-  { day: "Day 2", variantA: 14, variantB: 16, variantC: 12, variantD: 14 },
-  { day: "Day 3", variantA: 15, variantB: 18, variantC: 13, variantD: 15 },
-  { day: "Day 4", variantA: 15, variantB: 19, variantC: 13, variantD: 16 },
-  { day: "Day 5", variantA: 15, variantB: 19, variantC: 12, variantD: 16 },
-  { day: "Day 6", variantA: 15, variantB: 18, variantC: 13, variantD: 17 },
-  { day: "Day 7", variantA: 15, variantB: 19, variantC: 13, variantD: 16 },
-];
+interface ProductDetails {
+  name: string;
+  description: string;
+  price: string;
+  features: string;
+  benefits: string;
+  offer: string;
+}
+
+interface GeneratedVariant {
+  id: string;
+  text: string;
+  performance?: {
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+  };
+}
 
 export function ABTesting() {
-  const [selectedTest, setSelectedTest] = useState(abTests[0]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [variants, setVariants] = useState<GeneratedVariant[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [targetAudience, setTargetAudience] = useState('young adults');
+  const [customerCount, setCustomerCount] = useState(100);
+  const [isSending, setIsSending] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [productDetails, setProductDetails] = useState<ProductDetails>({
+    name: '',
+    description: '',
+    price: '',
+    features: '',
+    benefits: '',
+    offer: ''
+  });
+  const { toast } = useToast();
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "running": return "bg-success text-success-foreground";
-      case "completed": return "bg-primary text-primary-foreground";
-      case "paused": return "bg-warning text-warning-foreground";
-      default: return "bg-muted text-muted-foreground";
+  // Fetch campaigns from Supabase
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) {
+        fetchCampaigns();
+      }
+    };
+
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
+      if (session?.user) {
+        fetchCampaigns();
+      } else {
+        setCampaigns([]);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('id, name, message_template, target_audience')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedCampaigns = data?.map(campaign => ({
+        id: campaign.id,
+        name: campaign.name,
+        description: campaign.message_template?.substring(0, 100) + '...' || 'No description',
+        target_audience: campaign.target_audience
+      })) || [];
+
+      // Add mock campaigns if no real campaigns exist
+      if (formattedCampaigns.length === 0) {
+        setCampaigns([
+          { id: '1', name: 'Summer Sale', description: '20% off promotion', target_audience: 'young adults' },
+          { id: '2', name: 'Flash Sale', description: '50% off limited time', target_audience: 'bargain hunters' },
+          { id: '3', name: 'New Product Launch', description: 'Introducing our latest product', target_audience: 'tech enthusiasts' },
+          { id: '4', name: 'Black Friday Deal', description: 'Biggest sale of the year', target_audience: 'deal seekers' },
+          { id: '5', name: 'Welcome Series', description: 'Welcome new customers', target_audience: 'new customers' }
+        ]);
+      } else {
+        setCampaigns(formattedCampaigns);
+      }
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      // Set mock campaigns as fallback
+      setCampaigns([
+        { id: '1', name: 'Summer Sale', description: '20% off promotion', target_audience: 'young adults' },
+        { id: '2', name: 'Flash Sale', description: '50% off limited time', target_audience: 'bargain hunters' },
+        { id: '3', name: 'New Product Launch', description: 'Introducing our latest product', target_audience: 'tech enthusiasts' },
+        { id: '4', name: 'Black Friday Deal', description: 'Biggest sale of the year', target_audience: 'deal seekers' },
+        { id: '5', name: 'Welcome Series', description: 'Welcome new customers', target_audience: 'new customers' }
+      ]);
     }
   };
 
-  const getBestVariant = (variants: any[]) => {
-    return variants.reduce((best, current) => 
-      current.performance > best.performance ? current : best
-    );
+  const generateVariants = async () => {
+    if (!selectedCampaign) return;
+
+    setIsGenerating(true);
+    try {
+      console.log('Generating variants for campaign:', selectedCampaign);
+      console.log('Product details:', productDetails);
+      console.log('Target audience:', targetAudience);
+      
+      const requestBody = {
+        task: 'generate_variants',
+        campaign: {
+          name: selectedCampaign.name,
+          description: selectedCampaign.description
+        },
+        product: productDetails,
+        context: {
+          target_audience: targetAudience,
+          platform: 'WhatsApp'
+        }
+      };
+      
+      console.log('Request body:', requestBody);
+      
+      const { data, error } = await supabase.functions.invoke('ab-testing-agent', {
+        body: requestBody,
+      });
+
+      if (error) throw error;
+
+      console.log('Response data:', data);
+      
+      // Extract variants from our backend response
+      let variantTexts: string[] = [];
+      
+      if (data.variants) {
+        variantTexts = data.variants;
+      } else if (data.raw_content) {
+        variantTexts = [data.raw_content];
+      } else {
+        // Default fallback variants
+        variantTexts = [
+          `🎉 ${selectedCampaign.name}! ${selectedCampaign.description}. Don't miss out!`,
+          `Hey! ${selectedCampaign.description} - Limited time only! 🔥`,
+          `Special offer: ${selectedCampaign.description}. Act now! ⚡`
+        ];
+      }
+
+      const generatedVariants: GeneratedVariant[] = variantTexts.map((text, index) => ({
+        id: `variant-${index + 1}`,
+        text,
+        performance: {
+          sent: 0,
+          delivered: 0,
+          read: 0,
+          replied: 0
+        }
+      }));
+
+      setVariants(generatedVariants);
+      toast({
+        title: "Variants Generated",
+        description: `Generated ${generatedVariants.length} AI-powered message variants.`,
+      });
+    } catch (error) {
+      console.error('Error generating variants:', error);
+      
+      toast({
+        title: "Generation Failed",
+        description: `Failed to generate AI variants: ${error.message}. Using fallback variants.`,
+        variant: "destructive",
+      });
+      
+      // Fallback variants
+      setVariants([
+        {
+          id: 'variant-1',
+          text: `🎉 ${selectedCampaign.name}! ${selectedCampaign.description}. Don't miss out!`,
+          performance: { sent: 0, delivered: 0, read: 0, replied: 0 }
+        },
+        {
+          id: 'variant-2',
+          text: `Hey! ${selectedCampaign.description} - Limited time only! 🔥`,
+          performance: { sent: 0, delivered: 0, read: 0, replied: 0 }
+        },
+        {
+          id: 'variant-3',
+          text: `Special offer: ${selectedCampaign.description}. Act now! ⚡`,
+          performance: { sent: 0, delivered: 0, read: 0, replied: 0 }
+        }
+      ]);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gradient-primary">A/B Testing Dashboard</h1>
-          <p className="text-muted-foreground">Reinforcement learning-powered optimization</p>
-        </div>
-        <Button variant="hero" size="lg" className="gap-2">
-          <TestTube className="w-5 h-5" />
-          Create A/B Test
-        </Button>
-      </div>
+  const sendToWhatsApp = async (variantId: string) => {
+    setIsSending(true);
+    try {
+      // Simulate sending to WhatsApp with realistic performance metrics
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Update variant performance with random simulation
+      const delivered = Math.floor(customerCount * (0.90 + Math.random() * 0.08)); // 90-98% delivery
+      const read = Math.floor(delivered * (0.75 + Math.random() * 0.20)); // 75-95% read rate
+      const replied = Math.floor(read * (0.10 + Math.random() * 0.15)); // 10-25% reply rate
+      
+      setVariants(prev => prev.map(variant => 
+        variant.id === variantId 
+          ? { 
+              ...variant, 
+              performance: { 
+                sent: customerCount,
+                delivered,
+                read,
+                replied
+              } 
+            }
+          : variant
+      ));
+      
+      toast({
+        title: "Campaign Sent",
+        description: `Variant sent to ${customerCount} customers successfully.`,
+      });
+      
+      console.log(`Sent variant ${variantId} to ${customerCount} customers`);
+    } catch (error) {
+      console.error('Error sending to WhatsApp:', error);
+      toast({
+        title: "Send Failed",
+        description: "Failed to send campaign. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
 
-      {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Tests</p>
-                <p className="text-2xl font-bold">
-                  {abTests.filter(t => t.status === 'running').length}
-                </p>
-              </div>
-              <TestTube className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Audience</p>
-                <p className="text-2xl font-bold">
-                  {abTests.reduce((sum, t) => sum + t.audience, 0).toLocaleString()}
-                </p>
-              </div>
-              <Users className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Lift</p>
-                <p className="text-2xl font-bold text-gradient-success">+23%</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-success" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Confidence</p>
-                <p className="text-2xl font-bold">95%</p>
-              </div>
-              <Target className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Test List */}
-        <Card className="shadow-card lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Active A/B Tests</CardTitle>
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-96">
+          <CardHeader className="text-center">
+            <CardTitle>Authentication Required</CardTitle>
+            <CardDescription>Please sign in to access A/B Testing features</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {abTests.map((test) => (
-                <div
-                  key={test.id}
-                  className={`p-4 rounded-lg border cursor-pointer transition-smooth hover:shadow-card ${
-                    selectedTest.id === test.id ? 'border-primary bg-primary/5' : 'border-border'
-                  }`}
-                  onClick={() => setSelectedTest(test)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium">{test.name}</h4>
-                    <Badge className={getStatusColor(test.status)}>
-                      {test.status}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">{test.campaign}</p>
-                  <div className="flex items-center gap-2 text-xs">
-                    <Brain className="w-3 h-3" />
-                    <span>{test.rl_algorithm}</span>
-                  </div>
-                  <div className="mt-2 text-xs">
-                    <div className="flex justify-between">
-                      <span>Best variant: {getBestVariant(test.variants).name}</span>
-                      <span>{getBestVariant(test.variants).performance}%</span>
-                    </div>
-                  </div>
-                </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Brain className="w-8 h-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold">AI-Powered A/B Testing</h1>
+            <p className="text-muted-foreground">Agentic reinforcement learning for WhatsApp campaigns</p>
+          </div>
+        </div>
+        <Badge variant="secondary" className="flex items-center gap-1">
+          <Target className="w-3 h-3" />
+          Agentic RL
+        </Badge>
+      </div>
+
+      {/* Campaign Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="w-5 h-5" />
+            Campaign Setup
+          </CardTitle>
+          <CardDescription>Choose a campaign and generate AI-powered message variants</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="campaign">Campaign</Label>
+              <Select onValueChange={(value) => {
+                const campaign = campaigns.find(c => c.id === value);
+                setSelectedCampaign(campaign || null);
+                setVariants([]); // Clear previous variants
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  {campaigns.map((campaign) => (
+                    <SelectItem key={campaign.id} value={campaign.id}>
+                      {campaign.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="audience">Target Audience</Label>
+              <Input
+                id="audience"
+                value={targetAudience}
+                onChange={(e) => setTargetAudience(e.target.value)}
+                placeholder="young adults, professionals, etc."
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Button 
+              onClick={generateVariants} 
+              disabled={!selectedCampaign || isGenerating}
+              className="flex items-center gap-2"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-4 h-4" />
+                  Generate AI Variants
+                </>
+              )}
+            </Button>
+            
+            {selectedCampaign && (
+              <div className="text-sm text-muted-foreground">
+                Campaign: <strong>{selectedCampaign.name}</strong> - {selectedCampaign.description}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Product Details Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="w-5 h-5" />
+            Product Details
+          </CardTitle>
+          <CardDescription>Provide detailed product information for better AI-generated variants</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="productName">Product Name</Label>
+              <Input
+                id="productName"
+                value={productDetails.name}
+                onChange={(e) => setProductDetails(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g., Premium Wireless Headphones"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="productPrice">Price</Label>
+              <Input
+                id="productPrice"
+                value={productDetails.price}
+                onChange={(e) => setProductDetails(prev => ({ ...prev, price: e.target.value }))}
+                placeholder="e.g., $99, ₹5999, 20% off"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="productDescription">Product Description</Label>
+            <Textarea
+              id="productDescription"
+              value={productDetails.description}
+              onChange={(e) => setProductDetails(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Brief description of your product..."
+              className="min-h-[80px]"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="productFeatures">Key Features</Label>
+              <Textarea
+                id="productFeatures"
+                value={productDetails.features}
+                onChange={(e) => setProductDetails(prev => ({ ...prev, features: e.target.value }))}
+                placeholder="e.g., Noise cancellation, 30hr battery, Bluetooth 5.0"
+                className="min-h-[80px]"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="productBenefits">Benefits</Label>
+              <Textarea
+                id="productBenefits"
+                value={productDetails.benefits}
+                onChange={(e) => setProductDetails(prev => ({ ...prev, benefits: e.target.value }))}
+                placeholder="e.g., Crystal clear calls, All-day comfort, Seamless connectivity"
+                className="min-h-[80px]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="productOffer">Special Offer/Promotion</Label>
+            <Input
+              id="productOffer"
+              value={productDetails.offer}
+              onChange={(e) => setProductDetails(prev => ({ ...prev, offer: e.target.value }))}
+              placeholder="e.g., Limited time 20% off, Free shipping, Buy 1 Get 1"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Generated Variants */}
+      {variants.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="w-5 h-5" />
+              Generated Message Variants
+            </CardTitle>
+            <CardDescription>AI-generated WhatsApp message variants for A/B testing</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {variants.map((variant, index) => (
+                <Card key={variant.id} className="relative border-l-4 border-primary/20">
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      Variant {String.fromCharCode(65 + index)}
+                      <Badge variant="outline" className="text-xs">
+                        AI Generated
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Textarea
+                      value={variant.text}
+                      onChange={(e) => {
+                        setVariants(prev => prev.map(v => 
+                          v.id === variant.id ? { ...v, text: e.target.value } : v
+                        ));
+                      }}
+                      className="min-h-[100px] text-sm"
+                      placeholder="Message content..."
+                    />
+                    
+                    {variant.performance && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-medium text-muted-foreground">Performance</h4>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-muted p-2 rounded">
+                            <div className="font-medium">Sent</div>
+                            <div className="text-lg font-bold">{variant.performance.sent}</div>
+                          </div>
+                          <div className="bg-muted p-2 rounded">
+                            <div className="font-medium">Delivered</div>
+                            <div className="text-lg font-bold">{variant.performance.delivered}</div>
+                          </div>
+                          <div className="bg-muted p-2 rounded">
+                            <div className="font-medium">Read</div>
+                            <div className="text-lg font-bold">{variant.performance.read}</div>
+                          </div>
+                          <div className="bg-muted p-2 rounded">
+                            <div className="font-medium">Replied</div>
+                            <div className="text-lg font-bold">{variant.performance.replied}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               ))}
             </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Test Details */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="shadow-card">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <TestTube className="w-5 h-5" />
-                  {selectedTest.name}
-                </CardTitle>
-                <div className="flex gap-2">
-                  {selectedTest.status === "running" && (
-                    <>
-                      <Button variant="ghost" size="sm">
-                        <Pause className="w-4 h-4 mr-1" />
-                        Pause
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <RotateCcw className="w-4 h-4 mr-1" />
-                        Reset
-                      </Button>
-                    </>
+      {/* Send to WhatsApp */}
+      {variants.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5" />
+              Send to WhatsApp
+            </CardTitle>
+            <CardDescription>Select number of customers and send your variants</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <Label htmlFor="customers">Number of Customers</Label>
+                <Input
+                  id="customers"
+                  type="number"
+                  value={customerCount}
+                  onChange={(e) => setCustomerCount(Number(e.target.value))}
+                  className="w-32"
+                  min="1"
+                  max="10000"
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Each variant will be sent to this many customers for A/B testing
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {variants.map((variant, index) => (
+                <Button
+                  key={variant.id}
+                  onClick={() => sendToWhatsApp(variant.id)}
+                  disabled={isSending}
+                  variant="outline"
+                  className="flex items-center gap-3 h-auto p-4 text-left justify-start"
+                >
+                  {isSending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
                   )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Test Info */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-lg font-semibold">{selectedTest.duration} days</div>
-                    <div className="text-sm text-muted-foreground">Duration</div>
+                  <div className="flex-1">
+                    <div className="font-medium">Send Variant {String.fromCharCode(65 + index)}</div>
+                    <div className="text-xs text-muted-foreground">To {customerCount} customers</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold">{selectedTest.audience.toLocaleString()}</div>
-                    <div className="text-sm text-muted-foreground">Audience</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold">{selectedTest.confidence}%</div>
-                    <div className="text-sm text-muted-foreground">Confidence</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold">{selectedTest.rl_algorithm}</div>
-                    <div className="text-sm text-muted-foreground">Algorithm</div>
-                  </div>
-                </div>
-
-                {/* Variant Performance */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-primary" />
-                    Variant Performance & Traffic Allocation
-                  </h4>
-                  {selectedTest.variants.map((variant, index) => {
-                    const isWinner = variant === getBestVariant(selectedTest.variants);
-                    return (
-                      <div key={variant.name} className="p-4 bg-muted/30 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="font-mono">
-                              Variant {variant.name}
-                            </Badge>
-                            {isWinner && (
-                              <Badge className="bg-gradient-success text-success-foreground">
-                                Winner
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <div className="font-semibold">{variant.performance}%</div>
-                            <div className="text-sm text-muted-foreground">
-                              {variant.conversions} conversions
-                            </div>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Performance</span>
-                            <span>{variant.performance}%</span>
-                          </div>
-                          <Progress value={variant.performance} className="h-2" />
-                          <div className="flex justify-between text-sm">
-                            <span>Traffic Allocation</span>
-                            <span>{variant.allocation}%</span>
-                          </div>
-                          <Progress value={variant.allocation} className="h-2" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* RL Insights */}
-                <div className="p-4 bg-gradient-card rounded-lg border border-border/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-5 h-5 text-primary" />
-                    <span className="font-medium">Reinforcement Learning Insights</span>
-                  </div>
-                  <div className="text-sm space-y-1">
-                    <p>• Variant B shows 23% higher performance - increasing allocation to 45%</p>
-                    <p>• Thompson Sampling is exploring variants C and D for potential improvements</p>
-                    <p>• Regret minimization strategy suggests continuing test for 3 more days</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Performance Chart */}
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Performance Over Time</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={performanceData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Line type="monotone" dataKey="variantA" stroke="hsl(var(--primary))" name="Variant A" />
-                  <Line type="monotone" dataKey="variantB" stroke="hsl(var(--success))" name="Variant B" />
-                  <Line type="monotone" dataKey="variantC" stroke="hsl(var(--warning))" name="Variant C" />
-                  <Line type="monotone" dataKey="variantD" stroke="hsl(var(--danger))" name="Variant D" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

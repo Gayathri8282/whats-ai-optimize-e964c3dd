@@ -13,7 +13,7 @@ import { ComplianceDashboard } from "@/components/ComplianceDashboard";
 import { SettingsPage } from "@/components/SettingsPage";
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("ab-testing");
 
   const renderContent = () => {
     switch (activeTab) {
