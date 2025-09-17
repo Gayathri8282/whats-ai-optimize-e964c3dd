@@ -29,9 +29,6 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     console.log('🎯 Starting A/B test:', testId);
-    console.log('📊 Found test data:', testData);
-    console.log('🔍 Available customers:', customers?.length || 0);
-    console.log('📝 Test variations:', variations?.length || 0);
 
     // Get test details and campaign info with proper join syntax
     const { data: testData, error: testError } = await supabase
