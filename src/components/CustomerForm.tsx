@@ -3,12 +3,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Customer } from "@/hooks/useCustomers";
-import { Loader2, Save, X } from "lucide-react";
+import { Loader2, Save, X, Phone, Globe } from "lucide-react";
+import { COUNTRIES, POPULAR_CITIES, getCountryByCode, formatPhoneNumber, validateInternationalPhone, parsePhoneNumber } from "@/utils/countries";
 
 interface CustomerFormProps {
   isOpen: boolean;
@@ -21,7 +21,9 @@ interface CustomerFormData {
   full_name: string;
   email: string;
   phone: string;
-  location: string;
+  country: string;
+  city: string;
+  location: string; // For backward compatibility
   age: number;
   income: number;
   total_spent: number;
@@ -35,12 +37,6 @@ interface CustomerFormData {
   mnt_meat_products: number;
   mnt_gold_prods: number;
 }
-
-const LOCATIONS = [
-  "New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia",
-  "San Antonio", "San Diego", "Dallas", "San Jose", "Austin", "Jacksonville",
-  "Fort Worth", "Columbus", "Charlotte", "San Francisco", "Indianapolis", "Seattle"
-];
 
 const ENGAGEMENT_LEVELS = {
   "Low": 0,
@@ -60,6 +56,8 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
     full_name: "",
     email: "",
     phone: "",
+    country: "US",
+    city: "",
     location: "",
     age: 30,
     income: 50000,
@@ -75,16 +73,50 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
     mnt_gold_prods: 0,
   });
 
+  const [selectedCountryCode, setSelectedCountryCode] = useState("US");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [errors, setErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (customer) {
+      // Parse existing location if it contains comma (City, Country format)
+      let country = customer.country || "US";
+      let city = customer.city || "";
+      
+      if (!customer.country && customer.location) {
+        const locationParts = customer.location.split(',').map(p => p.trim());
+        if (locationParts.length === 2) {
+          city = locationParts[0];
+          // Try to find country by name
+          const foundCountry = COUNTRIES.find(c => 
+            c.name.toLowerCase() === locationParts[1].toLowerCase()
+          );
+          if (foundCountry) {
+            country = foundCountry.code;
+          }
+        } else {
+          city = customer.location;
+        }
+      }
+
+      // Parse phone number for country code
+      let countryCode = country;
+      let phoneNum = customer.phone || "";
+      
+      const parsedPhone = parsePhoneNumber(customer.phone || "");
+      if (parsedPhone) {
+        countryCode = parsedPhone.countryCode;
+        phoneNum = parsedPhone.number;
+      }
+
       setFormData({
         full_name: customer.full_name || "",
         email: customer.email || "",
         phone: customer.phone || "",
+        country: country,
+        city: city,
         location: customer.location || "",
         age: customer.age || 30,
         income: customer.income || 50000,
@@ -99,12 +131,17 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
         mnt_meat_products: customer.mnt_meat_products || 0,
         mnt_gold_prods: customer.mnt_gold_prods || 0,
       });
+
+      setSelectedCountryCode(countryCode);
+      setPhoneNumber(phoneNum);
     } else {
       // Reset form for new customer
       setFormData({
         full_name: "",
         email: "",
         phone: "",
+        country: "US",
+        city: "",
         location: "",
         age: 30,
         income: 50000,
@@ -119,6 +156,8 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
         mnt_meat_products: 0,
         mnt_gold_prods: 0,
       });
+      setSelectedCountryCode("US");
+      setPhoneNumber("");
     }
     setErrors({});
   }, [customer, isOpen]);
@@ -137,12 +176,21 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
       newErrors.email = "Invalid email format";
     }
 
-    if (!formData.phone.trim()) {
+    if (!phoneNumber.trim()) {
       newErrors.phone = "Phone is required";
+    } else {
+      const fullPhone = formatPhoneNumber(phoneNumber, selectedCountryCode);
+      if (!validateInternationalPhone(fullPhone)) {
+        newErrors.phone = "Invalid phone number format";
+      }
     }
 
-    if (!formData.location.trim()) {
-      newErrors.location = "Location is required";
+    if (!formData.country) {
+      newErrors.country = "Country is required";
+    }
+
+    if (!formData.city.trim()) {
+      newErrors.city = "City is required";
     }
 
     // Numeric validations
@@ -179,6 +227,25 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
     }
   };
 
+  const handleCountryChange = (countryCode: string) => {
+    setSelectedCountryCode(countryCode);
+    setFormData(prev => ({ ...prev, country: countryCode, city: "" }));
+    
+    // Clear phone error when country changes
+    if (errors.phone) {
+      setErrors(prev => ({ ...prev, phone: undefined }));
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    setPhoneNumber(value);
+    
+    // Clear phone error when user types
+    if (errors.phone) {
+      setErrors(prev => ({ ...prev, phone: undefined }));
+    }
+  };
+
   const handleEngagementChange = (level: string) => {
     const campaignsAccepted = ENGAGEMENT_LEVELS[level as keyof typeof ENGAGEMENT_LEVELS];
     handleInputChange("campaigns_accepted", campaignsAccepted);
@@ -206,7 +273,19 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
 
     setIsSubmitting(true);
     try {
-      await onSave(formData);
+      const selectedCountry = getCountryByCode(selectedCountryCode);
+      const fullPhone = formatPhoneNumber(phoneNumber, selectedCountryCode);
+      const fullLocation = `${formData.city}, ${selectedCountry?.name || formData.country}`;
+
+      const customerData = {
+        ...formData,
+        phone: fullPhone,
+        location: fullLocation,
+        country: selectedCountryCode,
+        city: formData.city,
+      };
+
+      await onSave(customerData);
       toast({
         title: customer ? "Customer Updated" : "Customer Added",
         description: customer 
@@ -241,11 +320,15 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
     return "New";
   };
 
+  const selectedCountry = getCountryByCode(selectedCountryCode);
+  const availableCities = POPULAR_CITIES[selectedCountryCode] || [];
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
+            <Globe className="w-5 h-5" />
             {customer ? "Edit Customer" : "Add New Customer"}
           </DialogTitle>
         </DialogHeader>
@@ -279,30 +362,85 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number *</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
-                placeholder="+1 (555) 123-4567"
-                className={errors.phone ? "border-red-500" : ""}
-              />
-              {errors.phone && <p className="text-sm text-red-500">{errors.phone}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="location">Location *</Label>
-              <Select value={formData.location} onValueChange={(value) => handleInputChange("location", value)}>
-                <SelectTrigger className={errors.location ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select location" />
+              <Label htmlFor="country">Country *</Label>
+              <Select value={selectedCountryCode} onValueChange={handleCountryChange}>
+                <SelectTrigger className={errors.country ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select country" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border border-border shadow-lg z-50">
-                  {LOCATIONS.map(location => (
-                    <SelectItem key={location} value={location}>{location}</SelectItem>
+                <SelectContent className="bg-card border border-border shadow-lg z-50 max-h-60">
+                  {COUNTRIES.map(country => (
+                    <SelectItem key={country.code} value={country.code}>
+                      <div className="flex items-center gap-2">
+                        <span>{country.flag}</span>
+                        <span>{country.name}</span>
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {errors.location && <p className="text-sm text-red-500">{errors.location}</p>}
+              {errors.country && <p className="text-sm text-red-500">{errors.country}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="city">City *</Label>
+              {availableCities.length > 0 ? (
+                <Select value={formData.city} onValueChange={(value) => handleInputChange("city", value)}>
+                  <SelectTrigger className={errors.city ? "border-red-500" : ""}>
+                    <SelectValue placeholder="Select or type city" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border border-border shadow-lg z-50">
+                    {availableCities.map(city => (
+                      <SelectItem key={city} value={city}>{city}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="city"
+                  value={formData.city}
+                  onChange={(e) => handleInputChange("city", e.target.value)}
+                  placeholder="Enter city name"
+                  className={errors.city ? "border-red-500" : ""}
+                />
+              )}
+              {errors.city && <p className="text-sm text-red-500">{errors.city}</p>}
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="phone">Phone Number *</Label>
+              <div className="flex gap-2">
+                <Select value={selectedCountryCode} onValueChange={handleCountryChange}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border border-border shadow-lg z-50">
+                    {COUNTRIES.map(country => (
+                      <SelectItem key={country.code} value={country.code}>
+                        <div className="flex items-center gap-2">
+                          <span>{country.flag}</span>
+                          <span>{country.phoneCode}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex-1">
+                  <Input
+                    id="phone"
+                    value={phoneNumber}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="Enter phone number"
+                    className={errors.phone ? "border-red-500" : ""}
+                  />
+                </div>
+              </div>
+              {selectedCountry && (
+                <p className="text-sm text-muted-foreground">
+                  <Phone className="w-3 h-3 inline mr-1" />
+                  Format: {selectedCountry.phoneCode} + your number
+                </p>
+              )}
+              {errors.phone && <p className="text-sm text-red-500">{errors.phone}</p>}
             </div>
 
             <div className="space-y-2">
@@ -320,7 +458,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="income">Annual Income ($)</Label>
+              <Label htmlFor="income">Annual Income (Local Currency)</Label>
               <Input
                 id="income"
                 type="number"
@@ -368,7 +506,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
           {/* Financial Information */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="total_spent">Total Spent ($)</Label>
+              <Label htmlFor="total_spent">Total Spent</Label>
               <Input
                 id="total_spent"
                 type="number"
@@ -412,7 +550,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
           {/* Product Spending */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="mnt_wines">Wines ($)</Label>
+              <Label htmlFor="mnt_wines">Wines</Label>
               <Input
                 id="mnt_wines"
                 type="number"
@@ -424,7 +562,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="mnt_fruits">Fruits ($)</Label>
+              <Label htmlFor="mnt_fruits">Fruits</Label>
               <Input
                 id="mnt_fruits"
                 type="number"
@@ -436,7 +574,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="mnt_meat_products">Meat ($)</Label>
+              <Label htmlFor="mnt_meat_products">Meat</Label>
               <Input
                 id="mnt_meat_products"
                 type="number"
@@ -448,7 +586,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="mnt_gold_prods">Gold Products ($)</Label>
+              <Label htmlFor="mnt_gold_prods">Gold Products</Label>
               <Input
                 id="mnt_gold_prods"
                 type="number"

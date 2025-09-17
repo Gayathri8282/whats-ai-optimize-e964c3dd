@@ -11,6 +11,8 @@ export interface Customer {
   email: string;
   phone: string;
   location: string;
+  country?: string;
+  city?: string;
   total_spent: number;
   total_purchases: number;
   campaigns_accepted: number;
