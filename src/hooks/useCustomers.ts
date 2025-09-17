@@ -153,16 +153,20 @@ export function useCustomers(limit: number = 50) {
 
   const addCustomer = async (customerData: Partial<Customer>) => {
     try {
+      console.log('=== ADD CUSTOMER DEBUG ===');
+      console.log('Customer Data:', customerData);
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("User not authenticated");
       }
+      console.log('User ID:', user.id);
 
       // Prepare the customer data for insert
       const newCustomer = {
         full_name: customerData.full_name,
         email: customerData.email,
-        phone: customerData.phone,
+        phone: customerData.phone, // Use the formatted phone directly
         location: customerData.location,
         country: customerData.country,
         city: customerData.city,
@@ -196,12 +200,17 @@ export function useCustomers(limit: number = 50) {
         accepted_cmp5: false,
       };
 
+      console.log('Prepared customer data:', newCustomer);
+
       // Use the exact format requested
       const { data, error } = await supabase
         .from("customers")
         .insert([newCustomer])
         .select()
         .single();
+
+      console.log('Insert result - data:', data);
+      console.log('Insert result - error:', error);
 
       // Only show success toast if error === null
       if (error === null) {
@@ -236,10 +245,15 @@ export function useCustomers(limit: number = 50) {
 
   const updateCustomer = async (customerId: string, customerData: Partial<Customer>) => {
     try {
+      console.log('=== UPDATE CUSTOMER DEBUG ===');
+      console.log('Customer ID:', customerId);
+      console.log('Customer Data:', customerData);
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("User not authenticated");
       }
+      console.log('User ID:', user.id);
 
       const { data, error } = await supabase
         .from('customers')
@@ -251,6 +265,9 @@ export function useCustomers(limit: number = 50) {
         .eq('user_id', user.id)
         .select()
         .single();
+
+      console.log('Update result - data:', data);
+      console.log('Update result - error:', error);
 
       if (error === null) {
         toast({
@@ -282,16 +299,22 @@ export function useCustomers(limit: number = 50) {
 
   const deleteCustomer = async (customerId: string) => {
     try {
+      console.log('=== DELETE CUSTOMER DEBUG ===');
+      console.log('Customer ID:', customerId);
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("User not authenticated");
       }
+      console.log('User ID:', user.id);
 
       const { error } = await supabase
         .from('customers')
         .delete()
         .eq('id', customerId)
         .eq('user_id', user.id);
+
+      console.log('Delete result - error:', error);
 
       if (error === null) {
         toast({

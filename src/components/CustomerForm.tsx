@@ -180,9 +180,8 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
       newErrors.phone = "Phone is required";
     } else {
       const fullPhone = formatPhoneNumber(phoneNumber, selectedCountryCode);
-      // E.164 format validation: +[country code][number] (6-14 digits after country code)
-      const e164Regex = /^\+[1-9]\d{6,14}$/;
-      if (!e164Regex.test(fullPhone)) {
+      // E.164 format validation with more flexible regex
+      if (!validateInternationalPhone(fullPhone) || fullPhone.length < 10) {
         newErrors.phone = "Invalid phone number format (use E.164 format: +919876543210)";
       }
     }
@@ -264,6 +263,11 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('=== FORM SUBMIT DEBUG ===');
+    console.log('Form data:', formData);
+    console.log('Phone number input:', phoneNumber);
+    console.log('Selected country code:', selectedCountryCode);
+    
     // Validate form - if validation fails, block submit and show inline errors
     if (!validateForm()) {
       toast({
@@ -280,6 +284,9 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
       const fullPhone = formatPhoneNumber(phoneNumber, selectedCountryCode);
       const fullLocation = `${formData.city}, ${selectedCountry?.name || formData.country}`;
 
+      console.log('Formatted phone:', fullPhone);
+      console.log('Full location:', fullLocation);
+
       const customerData = {
         ...formData,
         phone: fullPhone,
@@ -287,6 +294,8 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
         country: selectedCountryCode,
         city: formData.city,
       };
+
+      console.log('Final customer data:', customerData);
 
       // Let the hook handle all success/error messaging
       await onSave(customerData);

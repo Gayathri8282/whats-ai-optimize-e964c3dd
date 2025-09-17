@@ -145,17 +145,24 @@ export function formatPhoneNumber(phone: string, countryCode: string): string {
   const country = getCountryByCode(countryCode);
   if (!country) return phone;
   
-  // Remove any existing country code and format
-  const cleanPhone = phone.replace(/^(\+?\d{1,4}[-\s]?)?/, '').replace(/\D/g, '');
+  // Clean the phone number - remove all non-digits
+  let cleanPhone = phone.replace(/\D/g, '');
+  
+  // If phone already starts with country code digits, remove them
+  const countryCodeDigits = country.phoneCode.substring(1); // Remove the + sign
+  if (cleanPhone.startsWith(countryCodeDigits)) {
+    cleanPhone = cleanPhone.substring(countryCodeDigits.length);
+  }
   
   // Add the country code
   return `${country.phoneCode}${cleanPhone}`;
 }
 
 export function validateInternationalPhone(phone: string): boolean {
-  // E.164 format validation: + followed by up to 15 digits
-  const e164Regex = /^\+[1-9]\d{1,14}$/;
-  return e164Regex.test(phone);
+  // E.164 format validation: + followed by 1-3 digit country code, then 4-15 digits
+  // More flexible to account for different country code lengths
+  const e164Regex = /^\+[1-9]\d{4,14}$/;
+  return e164Regex.test(phone) && phone.length >= 8 && phone.length <= 16;
 }
 
 export function parsePhoneNumber(phone: string): { countryCode: string; number: string } | null {
