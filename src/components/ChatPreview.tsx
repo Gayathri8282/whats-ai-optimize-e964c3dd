@@ -69,18 +69,26 @@ export function ChatPreview() {
     setIsTyping(true);
 
     try {
-      // Generate AI response using OpenAI
-      const { data, error } = await supabase.functions.invoke('generate-campaign', {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("Please log in to use the advanced chat features");
+      }
+
+      // Generate AI response using advanced chat
+      const { data, error } = await supabase.functions.invoke('advanced-chat', {
         body: {
-          prompt: `You are a helpful WhatsApp marketing assistant. User said: "${userMessage}". Provide a helpful, conversational response about marketing, campaigns, or customer engagement. Keep it under 150 words.`,
-          context: "WhatsApp Marketing Assistant"
+          message: userMessage,
+          userId: user.id
         }
       });
 
       if (error) throw error;
 
       setTimeout(() => {
-        addMessage(data.response || "I'm here to help with your marketing needs!", 'bot');
+        const response = data?.response || "I'm here to help with your marketing needs!";
+        addMessage(response, 'bot');
         setIsTyping(false);
       }, 1000);
 
@@ -136,7 +144,7 @@ export function ChatPreview() {
             <MessageSquare className="w-8 h-8" />
             AI Chat Preview
           </h1>
-          <p className="text-muted-foreground">Interactive WhatsApp marketing assistant with voice capabilities</p>
+          <p className="text-muted-foreground">Advanced AI assistant powered by your real marketing data and analytics</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm">
@@ -146,45 +154,38 @@ export function ChatPreview() {
         </div>
       </div>
 
-      {/* Voice Setup Card */}
-      <Card className="border-2 border-dashed border-primary/20">
+      {/* AI Assistant Features */}
+      <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-primary" />
-            ElevenLabs Voice Integration
+            Advanced Marketing AI Assistant
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium">ElevenLabs API Key</label>
-              <Input
-                type="password"
-                placeholder="sk-..."
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-3 rounded-lg bg-card border">
+              <MessageSquare className="w-8 h-8 text-primary mx-auto mb-2" />
+              <h4 className="font-semibold text-sm">Real-time Analytics</h4>
+              <p className="text-xs text-muted-foreground">Uses your live campaign data</p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Agent ID (Optional)</label>
-              <Input
-                placeholder="agent_..."
-                value={agentId}
-                onChange={(e) => setAgentId(e.target.value)}
-              />
+            <div className="text-center p-3 rounded-lg bg-card border">
+              <Bot className="w-8 h-8 text-primary mx-auto mb-2" />
+              <h4 className="font-semibold text-sm">Smart Insights</h4>
+              <p className="text-xs text-muted-foreground">AI-powered recommendations</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-card border">
+              <Zap className="w-8 h-8 text-primary mx-auto mb-2" />
+              <h4 className="font-semibold text-sm">Actionable Advice</h4>
+              <p className="text-xs text-muted-foreground">Data-driven strategies</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={useVoice ? stopVoiceConversation : startVoiceConversation}
-              variant={useVoice ? "destructive" : "default"}
-              className="flex items-center gap-2"
-            >
-              {useVoice ? <PhoneOff className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-              {useVoice ? "End Voice Chat" : "Start Voice Chat"}
-            </Button>
-            <Badge variant={useVoice ? "default" : "outline"}>
-              {useVoice ? "Voice Active" : "Text Mode"}
+          <div className="flex gap-2 justify-center">
+            <Badge variant="secondary" className="bg-success/10 text-success">
+              Connected to Your Data
+            </Badge>
+            <Badge variant="secondary" className="bg-primary/10 text-primary">
+              GPT-4 Powered
             </Badge>
           </div>
         </CardContent>
@@ -226,11 +227,18 @@ export function ChatPreview() {
           <div className="h-96 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="text-center py-8">
-                <Bot className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-semibold mb-2">Welcome to AI Marketing Assistant</h3>
-                <p className="text-muted-foreground text-sm">
-                  Ask me about campaigns, customer engagement, or marketing strategies!
+                <Bot className="w-12 h-12 text-primary mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">Advanced Marketing AI Assistant</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  I have access to your real customer data, campaign analytics, and ROI metrics. 
+                  Ask me anything about your marketing performance!
                 </p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <Badge variant="outline" className="text-xs">Campaign Analysis</Badge>
+                  <Badge variant="outline" className="text-xs">Customer Segmentation</Badge>
+                  <Badge variant="outline" className="text-xs">ROI Optimization</Badge>
+                  <Badge variant="outline" className="text-xs">Revenue Insights</Badge>
+                </div>
               </div>
             )}
             
@@ -320,26 +328,26 @@ export function ChatPreview() {
         <Button
           variant="outline"
           className="p-4 h-auto flex-col gap-2"
-          onClick={() => addMessage("How can I improve my campaign performance?", 'user')}
+          onClick={() => addMessage("Analyze my current campaign performance and suggest improvements", 'user')}
         >
           <MessageSquare className="w-6 h-6" />
-          <span>Ask about campaigns</span>
+          <span>Campaign Analysis</span>
         </Button>
         <Button
           variant="outline"
           className="p-4 h-auto flex-col gap-2"
-          onClick={() => addMessage("What's the best time to send WhatsApp messages?", 'user')}
+          onClick={() => addMessage("Which customers should I target for my next high-value campaign?", 'user')}
         >
           <Zap className="w-6 h-6" />
-          <span>Timing advice</span>
+          <span>Customer Targeting</span>
         </Button>
         <Button
           variant="outline"
           className="p-4 h-auto flex-col gap-2"
-          onClick={() => addMessage("Help me segment my customers better", 'user')}
+          onClick={() => addMessage("How can I improve my ROI based on current data?", 'user')}
         >
           <Bot className="w-6 h-6" />
-          <span>Customer insights</span>
+          <span>ROI Optimization</span>
         </Button>
       </div>
     </div>
