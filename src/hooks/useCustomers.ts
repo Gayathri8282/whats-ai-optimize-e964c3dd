@@ -67,12 +67,12 @@ export function useCustomers(limit: number = 50) {
         return;
       }
 
-      // Fetch customers
+      // Fetch customers ordered by created_at desc to show newest first
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .select('*')
         .eq('user_id', user.id)
-        .order('total_spent', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (customerError) throw customerError;
@@ -158,40 +158,78 @@ export function useCustomers(limit: number = 50) {
         throw new Error("User not authenticated");
       }
 
+      // Prepare the customer data for insert
       const newCustomer = {
-        ...customerData,
+        full_name: customerData.full_name,
+        email: customerData.email,
+        phone: customerData.phone,
+        location: customerData.location,
+        country: customerData.country,
+        city: customerData.city,
+        age: customerData.age,
+        income: customerData.income,
+        total_spent: customerData.total_spent,
+        total_purchases: customerData.total_purchases,
+        campaigns_accepted: customerData.campaigns_accepted,
+        opt_out: customerData.opt_out ?? false,
+        complain: customerData.complain ?? false,
+        recency: customerData.recency ?? 30,
+        mnt_wines: customerData.mnt_wines ?? 0,
+        mnt_fruits: customerData.mnt_fruits ?? 0,
+        mnt_meat_products: customerData.mnt_meat_products ?? 0,
+        mnt_gold_prods: customerData.mnt_gold_prods ?? 0,
         user_id: user.id,
-        // Provide default values for database fields not in the form
-        kidhome: customerData.kidhome ?? 0,
-        teenhome: customerData.teenhome ?? 0,
-        num_web_purchases: customerData.num_web_purchases ?? 0,
-        num_store_purchases: customerData.num_store_purchases ?? 0,
-        num_catalog_purchases: customerData.num_catalog_purchases ?? 0,
-        num_web_visits_month: customerData.num_web_visits_month ?? 0,
-        response: customerData.response ?? false,
-        z_cost_contact: customerData.z_cost_contact ?? 3.0,
-        z_revenue: customerData.z_revenue ?? 11.0,
-        accepted_cmp1: customerData.accepted_cmp1 ?? false,
-        accepted_cmp2: customerData.accepted_cmp2 ?? false,
-        accepted_cmp3: customerData.accepted_cmp3 ?? false,
-        accepted_cmp4: customerData.accepted_cmp4 ?? false,
-        accepted_cmp5: customerData.accepted_cmp5 ?? false,
+        // Default values for database fields
+        kidhome: 0,
+        teenhome: 0,
+        num_web_purchases: 0,
+        num_store_purchases: 0,
+        num_catalog_purchases: 0,
+        num_web_visits_month: 0,
+        response: false,
+        z_cost_contact: 3.0,
+        z_revenue: 11.0,
+        accepted_cmp1: false,
+        accepted_cmp2: false,
+        accepted_cmp3: false,
+        accepted_cmp4: false,
+        accepted_cmp5: false,
       };
 
+      // Use the exact format requested
       const { data, error } = await supabase
-        .from('customers')
-        .insert(newCustomer as any)
+        .from("customers")
+        .insert([newCustomer])
         .select()
         .single();
 
-      if (error) throw error;
-
-      // Refresh the customers list
-      await fetchCustomers();
-      
-      return data;
+      // Only show success toast if error === null
+      if (error === null) {
+        toast({
+          title: "Customer Added",
+          description: `${customerData.full_name} has been added successfully`,
+        });
+        
+        // Re-fetch the customer list to show new customer immediately
+        await fetchCustomers();
+        return data;
+      } else {
+        // Show error toast with actual Supabase error message
+        toast({
+          title: "Error Adding Customer",
+          description: error.message || "Failed to add customer",
+          variant: "destructive"
+        });
+        throw error;
+      }
     } catch (err) {
       console.error('Error adding customer:', err);
+      // Show error toast with actual error message
+      toast({
+        title: "Error Adding Customer", 
+        description: err instanceof Error ? err.message : "Failed to add customer",
+        variant: "destructive"
+      });
       throw err;
     }
   };

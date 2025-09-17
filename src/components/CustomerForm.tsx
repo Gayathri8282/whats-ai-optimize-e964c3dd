@@ -262,6 +262,7 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate form - if validation fails, block submit and show inline errors
     if (!validateForm()) {
       toast({
         title: "Validation Error",
@@ -285,21 +286,12 @@ export function CustomerForm({ isOpen, onClose, customer, onSave }: CustomerForm
         city: formData.city,
       };
 
+      // Let the hook handle all success/error messaging
       await onSave(customerData);
-      toast({
-        title: customer ? "Customer Updated" : "Customer Added",
-        description: customer 
-          ? `${formData.full_name} has been updated successfully`
-          : `${formData.full_name} has been added successfully`,
-      });
       onClose();
     } catch (error) {
+      // Error handling is now managed by the hook
       console.error("Error saving customer:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save customer",
-        variant: "destructive"
-      });
     } finally {
       setIsSubmitting(false);
     }
