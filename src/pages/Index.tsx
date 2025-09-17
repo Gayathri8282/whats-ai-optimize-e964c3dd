@@ -6,6 +6,9 @@ import { CampaignManager } from "@/components/CampaignManager";
 import { ABTesting } from "@/components/ABTesting";
 import { Analytics } from "@/components/Analytics";
 import { CustomerManagement } from "@/components/CustomerManagement";
+import { ChatPreview } from "@/components/ChatPreview";
+import { ComplianceDashboard } from "@/components/ComplianceDashboard";
+import { SettingsPage } from "@/components/SettingsPage";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -25,11 +28,11 @@ const Index = () => {
       case "customers":
         return <CustomerManagement />;
       case "chat-preview":
-        return <div className="p-8 text-center"><h2 className="text-2xl font-bold">Chat Preview</h2><p className="text-muted-foreground">Coming soon...</p></div>;
+        return <ChatPreview />;
       case "compliance":
-        return <div className="p-8 text-center"><h2 className="text-2xl font-bold">Compliance Dashboard</h2><p className="text-muted-foreground">Coming soon...</p></div>;
+        return <ComplianceDashboard />;
       case "settings":
-        return <div className="p-8 text-center"><h2 className="text-2xl font-bold">Settings</h2><p className="text-muted-foreground">Coming soon...</p></div>;
+        return <SettingsPage />;
       default:
         return <DataDrivenDashboard />;
     }
