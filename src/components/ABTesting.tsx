@@ -291,16 +291,33 @@ export function ABTesting() {
         }
       };
 
+      console.log('🔄 Generating variants with request:', JSON.stringify(requestBody, null, 2));
+      
       const { data, error } = await supabase.functions.invoke('ab-testing-agent', {
         body: requestBody,
       });
+
+      console.log('✅ AI response data:', data);
+      console.log('❌ AI response error:', error);
 
       if (error) throw error;
 
       let variantTexts: string[] = [];
       
       if (data?.variants && Array.isArray(data.variants)) {
-        variantTexts = data.variants;
+        // Handle both string variants and object variants with message property
+        variantTexts = data.variants.map((variant: any) => {
+          if (typeof variant === 'string') {
+            return variant;
+          } else if (typeof variant === 'object' && variant.message) {
+            return variant.message;
+          } else if (typeof variant === 'object') {
+            // Handle cases where the variant object has properties like variant1, variant2, etc.
+            const keys = Object.keys(variant);
+            return variant[keys[0]] || JSON.stringify(variant);
+          }
+          return String(variant);
+        });
       } else {
         // Fallback variants
         variantTexts = [
@@ -310,9 +327,12 @@ export function ABTesting() {
         ];
       }
 
+      console.log('🎯 Raw variants from API:', data.variants);
+      console.log('🎯 Processed variants:', variantTexts);
+      
       setVariants(variantTexts);
       toast({
-        title: "Variants Generated",
+        title: "Variants Generated! ✨",
         description: `Generated ${variantTexts.length} AI-powered message variants.`,
       });
     } catch (error) {
@@ -686,14 +706,16 @@ export function ABTesting() {
                     />
                   </div>
                   
-                  <div>
-                    <Label>Special Offer</Label>
-                    <Input
-                      value={productDetails.offer}
-                      onChange={(e) => setProductDetails(prev => ({ ...prev, offer: e.target.value }))}
-                      placeholder="20% off limited time"
-                    />
-                  </div>
+                   {/* Debug info for seed data visibility */}
+                   <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
+                     <p><strong>📊 Data Status:</strong></p>
+                     <p>• Total Customers: {customers.length}</p>
+                     <p>• Total Campaigns: {campaigns.length}</p>
+                     <p>• A/B Tests: {abTests.length}</p>
+                     {selectedCampaign && (
+                       <p>• Eligible for "{targetAudience || selectedCampaign.target_audience}": {getEligibleCustomers(targetAudience || selectedCampaign.target_audience).length}</p>
+                     )}
+                   </div>
                 </div>
               </div>
 
@@ -741,24 +763,24 @@ export function ABTesting() {
                 </div>
               )}
 
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={createABTest} 
-                  disabled={isCreating || !selectedCampaign || !testName}
-                >
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create A/B Test'
-                  )}
-                </Button>
-              </DialogFooter>
+               <DialogFooter>
+                 <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                   Cancel
+                 </Button>
+                 <Button 
+                   onClick={createABTest} 
+                   disabled={isCreating || !selectedCampaign || !testName.trim() || variants.some(v => !v.trim())}
+                 >
+                   {isCreating ? (
+                     <>
+                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                       Creating...
+                     </>
+                   ) : (
+                     'Create A/B Test'
+                   )}
+                 </Button>
+               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
