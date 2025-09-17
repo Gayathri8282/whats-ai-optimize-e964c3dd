@@ -24,9 +24,13 @@ export type Database = {
           created_at: string
           ctr: number | null
           id: string
+          is_winner: boolean | null
           message_template: string
           opened_count: number | null
+          read_count: number | null
+          reply_count: number | null
           sent_count: number | null
+          traffic_allocation: number | null
           updated_at: string
           variation_name: string
         }
@@ -39,9 +43,13 @@ export type Database = {
           created_at?: string
           ctr?: number | null
           id?: string
+          is_winner?: boolean | null
           message_template: string
           opened_count?: number | null
+          read_count?: number | null
+          reply_count?: number | null
           sent_count?: number | null
+          traffic_allocation?: number | null
           updated_at?: string
           variation_name: string
         }
@@ -54,9 +62,13 @@ export type Database = {
           created_at?: string
           ctr?: number | null
           id?: string
+          is_winner?: boolean | null
           message_template?: string
           opened_count?: number | null
+          read_count?: number | null
+          reply_count?: number | null
           sent_count?: number | null
+          traffic_allocation?: number | null
           updated_at?: string
           variation_name?: string
         }
@@ -65,38 +77,61 @@ export type Database = {
       ab_tests: {
         Row: {
           campaign_id: string
+          completed_at: string | null
           confidence_level: number | null
           created_at: string
+          customer_count: number | null
           id: string
           name: string
+          product_details_id: string | null
+          started_at: string | null
           status: string
+          target_audience: string | null
           traffic_split: number
           updated_at: string
           winner_variation: string | null
         }
         Insert: {
           campaign_id: string
+          completed_at?: string | null
           confidence_level?: number | null
           created_at?: string
+          customer_count?: number | null
           id?: string
           name: string
+          product_details_id?: string | null
+          started_at?: string | null
           status?: string
+          target_audience?: string | null
           traffic_split?: number
           updated_at?: string
           winner_variation?: string | null
         }
         Update: {
           campaign_id?: string
+          completed_at?: string | null
           confidence_level?: number | null
           created_at?: string
+          customer_count?: number | null
           id?: string
           name?: string
+          product_details_id?: string | null
+          started_at?: string | null
           status?: string
+          target_audience?: string | null
           traffic_split?: number
           updated_at?: string
           winner_variation?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ab_tests_product_details_id_fkey"
+            columns: ["product_details_id"]
+            isOneToOne: false
+            referencedRelation: "product_details"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       analytics_cache: {
         Row: {

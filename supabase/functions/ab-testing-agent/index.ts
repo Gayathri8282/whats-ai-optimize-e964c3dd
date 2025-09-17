@@ -19,7 +19,7 @@ serve(async (req) => {
     
     const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY');
     const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-    const GROQ_MODEL = 'llama-3.1-70b-versatile'; // Using available model
+    const GROQ_MODEL = 'llama-3.1-8b-instant'; // Using currently available model
     
     if (!GROQ_API_KEY) {
       console.error('GROQ_API_KEY not found');
