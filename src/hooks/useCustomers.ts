@@ -153,8 +153,6 @@ export function useCustomers(limit: number = 50) {
 
   const addCustomer = async (customerData: Partial<Customer>) => {
     try {
-      console.log('Attempting to add customer:', customerData);
-      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("User not authenticated");
@@ -180,15 +178,11 @@ export function useCustomers(limit: number = 50) {
         accepted_cmp5: customerData.accepted_cmp5 ?? false,
       };
 
-      console.log('Prepared customer data:', newCustomer);
-
       const { data, error } = await supabase
         .from('customers')
         .insert(newCustomer as any)
         .select()
         .single();
-
-      console.log('Supabase response:', { data, error });
 
       if (error) throw error;
 
