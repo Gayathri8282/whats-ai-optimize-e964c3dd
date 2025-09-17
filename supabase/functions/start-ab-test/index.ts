@@ -30,16 +30,10 @@ serve(async (req) => {
 
     console.log('🎯 Starting A/B test:', testId);
 
-    // Get test details and campaign info with proper join syntax
+    // Get test details first
     const { data: testData, error: testError } = await supabase
       .from('ab_tests')
-      .select(`
-        *,
-        campaigns (
-          user_id,
-          target_audience
-        )
-      `)
+      .select('*')
       .eq('id', testId)
       .single();
 
@@ -48,7 +42,21 @@ serve(async (req) => {
       throw new Error(`A/B test not found: ${testError?.message || 'Unknown error'}`);
     }
 
-    console.log('📋 Test data structure:', JSON.stringify(testData, null, 2));
+    console.log('📋 Test data found:', JSON.stringify(testData, null, 2));
+
+    // Get campaign details separately
+    const { data: campaignData, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('user_id, target_audience')
+      .eq('id', testData.campaign_id)
+      .single();
+
+    if (campaignError || !campaignData) {
+      console.error('❌ Campaign lookup failed:', campaignError);
+      throw new Error(`Campaign not found: ${campaignError?.message || 'Unknown error'}`);
+    }
+
+    console.log('📋 Campaign data found:', JSON.stringify(campaignData, null, 2));
 
     // Get variations for this test
     const { data: variations, error: variationsError } = await supabase
@@ -62,8 +70,7 @@ serve(async (req) => {
     }
 
     // Get eligible customers based on target audience
-    const campaignData = Array.isArray(testData.campaigns) ? testData.campaigns[0] : testData.campaigns;
-    const userId = campaignData?.user_id;
+    const userId = campaignData.user_id;
     
     if (!userId) {
       throw new Error('Could not determine user ID from campaign data');
