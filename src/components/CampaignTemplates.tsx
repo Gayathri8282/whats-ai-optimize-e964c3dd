@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -17,7 +20,13 @@ import {
   Star,
   Send,
   Copy,
-  Edit3
+  Edit3,
+  Mail,
+  Phone,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertCircle
 } from "lucide-react";
 
 interface Template {
@@ -29,6 +38,25 @@ interface Template {
   variables: string[];
   icon: React.ReactNode;
   color: string;
+}
+
+interface Customer {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  location: string;
+  total_spent: number;
+  campaigns_accepted: number;
+  opt_out: boolean;
+}
+
+interface SendResults {
+  total: number;
+  sent: number;
+  failed: number;
+  optedOut: number;
+  details: any[];
 }
 
 const CAMPAIGN_TEMPLATES: Template[] = [
@@ -100,7 +128,42 @@ export function CampaignTemplates() {
   const [editedSubject, setEditedSubject] = useState("");
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const [selectAllCustomers, setSelectAllCustomers] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [isSending, setIsSending] = useState(false);
+  const [sendResults, setSendResults] = useState<SendResults | null>(null);
+  const [showResults, setShowResults] = useState(false);
   const { toast } = useToast();
+
+  // Load customers on component mount
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, full_name, email, phone, location, total_spent, campaigns_accepted, opt_out')
+        .eq('user_id', user.id)
+        .order('total_spent', { ascending: false });
+
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch (error) {
+      console.error('Failed to load customers:', error);
+      toast({
+        title: "Failed to Load Customers",
+        description: "Could not load customer data",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleTemplateSelect = (template: Template) => {
     setSelectedTemplate(template);
@@ -110,9 +173,39 @@ export function CampaignTemplates() {
     // Initialize variable values with placeholders
     const initialValues: Record<string, string> = {};
     template.variables.forEach(variable => {
-      initialValues[variable] = `[${variable}]`;
+      initialValues[variable] = getDefaultVariableValue(variable);
     });
     setVariableValues(initialValues);
+    
+    // Reset customer selection
+    setSelectedCustomers([]);
+    setSelectAllCustomers(false);
+    setSendResults(null);
+    setShowResults(false);
+  };
+
+  const getDefaultVariableValue = (variable: string): string => {
+    const defaults: Record<string, string> = {
+      'customer_name': '{{customer_name}}',
+      'company_name': 'Your Company',
+      'discount': '20',
+      'duration': '24',
+      'promo_code': 'FLASH20',
+      'shop_link': 'https://yourstore.com',
+      'expiry_time': 'midnight',
+      'cart_items': 'Your selected items',
+      'checkout_link': 'https://yourstore.com/checkout',
+      'valid_hours': '48',
+      'gift_amount': '$10',
+      'claim_link': 'https://yourstore.com/birthday',
+      'expiry_date': 'next week',
+      'product_name': 'your recent purchase',
+      'review_link': 'https://yourstore.com/review',
+      'reward': '15',
+      'return_link': 'https://yourstore.com/welcome-back',
+      'valid_days': '7'
+    };
+    return defaults[variable] || `{{${variable}}}`;
   };
 
   const handleVariableChange = (variable: string, value: string) => {
@@ -122,10 +215,29 @@ export function CampaignTemplates() {
     }));
   };
 
-  const replaceVariables = (text: string) => {
+  const handleCustomerSelection = (customerId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedCustomers(prev => [...prev, customerId]);
+    } else {
+      setSelectedCustomers(prev => prev.filter(id => id !== customerId));
+      setSelectAllCustomers(false);
+    }
+  };
+
+  const handleSelectAllCustomers = (checked: boolean) => {
+    setSelectAllCustomers(checked);
+    if (checked) {
+      const eligibleCustomerIds = customers.filter(c => !c.opt_out).map(c => c.id);
+      setSelectedCustomers(eligibleCustomerIds);
+    } else {
+      setSelectedCustomers([]);
+    }
+  };
+
+  const replaceVariables = (text: string): string => {
     let result = text;
     Object.entries(variableValues).forEach(([variable, value]) => {
-      result = result.replace(new RegExp(`{{${variable}}}`, 'g'), value || `[${variable}]`);
+      result = result.replace(new RegExp(`\\{\\{${variable}\\}\\}`, 'g'), value || `{{${variable}}}`);
     });
     return result;
   };
@@ -150,7 +262,7 @@ export function CampaignTemplates() {
         throw new Error("Please log in to use AI features");
       }
 
-      const prompt = `Improve this WhatsApp marketing template for ${selectedTemplate.category.toLowerCase()} campaigns. Make it more engaging, personalized, and conversion-focused while keeping the same variables: ${selectedTemplate.variables.join(', ')}. Original: ${editedContent}`;
+      const prompt = `Improve this ${selectedChannel} marketing template for ${selectedTemplate.category.toLowerCase()} campaigns. Make it more engaging, personalized, and conversion-focused while keeping the same variables: ${selectedTemplate.variables.join(', ')}. Original: ${editedContent}`;
 
       const { data, error } = await supabase.functions.invoke('advanced-chat', {
         body: {
@@ -191,31 +303,91 @@ export function CampaignTemplates() {
   const handleSendCampaign = async () => {
     if (!selectedTemplate) return;
 
-    const finalSubject = replaceVariables(editedSubject);
-    const finalContent = replaceVariables(editedContent);
+    const eligibleCustomers = selectAllCustomers 
+      ? customers.filter(c => !c.opt_out)
+      : customers.filter(c => selectedCustomers.includes(c.id) && !c.opt_out);
 
-    try {
-      // In a real implementation, this would send the campaign
-      console.log('Sending campaign:', { subject: finalSubject, content: finalContent });
-      
+    if (eligibleCustomers.length === 0) {
       toast({
-        title: "Campaign Sent! 🚀",
-        description: `${selectedTemplate.name} campaign has been queued for delivery`
-      });
-    } catch (error) {
-      toast({
-        title: "Send Failed",
-        description: "Failed to send campaign. Please try again.",
+        title: "No Recipients Selected",
+        description: "Please select customers to send the campaign to",
         variant: "destructive"
       });
+      return;
+    }
+
+    try {
+      setIsSending(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("Please log in to send campaigns");
+      }
+
+      const finalSubject = replaceVariables(editedSubject);
+      const finalContent = replaceVariables(editedContent);
+
+      // Prepare the request
+      const sendRequest = {
+        userId: user.id,
+        campaignName: selectedTemplate.name,
+        messageTemplate: finalContent,
+        subject: finalSubject,
+        customerIds: selectAllCustomers ? undefined : selectedCustomers,
+        sendToAll: selectAllCustomers
+      };
+
+      console.log('Sending campaign:', { 
+        channel: selectedChannel, 
+        template: selectedTemplate.name,
+        customerCount: eligibleCustomers.length 
+      });
+
+      // Call the appropriate edge function
+      const functionName = selectedChannel === 'whatsapp' ? 'send-whatsapp' : 'send-email';
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: sendRequest
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setSendResults(data.results);
+        setShowResults(true);
+        
+        toast({
+          title: `${selectedChannel === 'whatsapp' ? 'WhatsApp' : 'Email'} Campaign Sent! 🚀`,
+          description: `Sent: ${data.results.sent}, Failed: ${data.results.failed}${data.results.optedOut > 0 ? `, Opted out: ${data.results.optedOut}` : ''}`,
+        });
+      } else {
+        throw new Error(data.error || 'Failed to send campaign');
+      }
+
+    } catch (error) {
+      console.error('Send campaign error:', error);
+      toast({
+        title: "Campaign Send Failed",
+        description: error instanceof Error ? error.message : "Failed to send campaign. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSending(false);
     }
   };
+
+  const eligibleCustomerCount = customers.filter(c => !c.opt_out).length;
+  const selectedEligibleCount = selectAllCustomers 
+    ? eligibleCustomerCount 
+    : selectedCustomers.filter(id => {
+        const customer = customers.find(c => c.id === id);
+        return customer && !customer.opt_out;
+      }).length;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gradient-primary mb-2">Campaign Templates</h2>
-        <p className="text-muted-foreground">Choose and customize proven WhatsApp marketing templates</p>
+        <p className="text-muted-foreground">Choose and customize proven WhatsApp and Email marketing templates</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -287,6 +459,30 @@ export function CampaignTemplates() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Channel Selection */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Delivery Channel</label>
+              <Select value={selectedChannel} onValueChange={(value: 'whatsapp' | 'email') => setSelectedChannel(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="whatsapp">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      WhatsApp
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="email">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Email
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Subject Line Editor */}
             <div>
               <label className="text-sm font-medium mb-2 block">Subject Line</label>
@@ -331,6 +527,49 @@ export function CampaignTemplates() {
               />
             </div>
 
+            {/* Customer Selection */}
+            <div>
+              <label className="text-sm font-medium mb-3 block flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Select Recipients ({eligibleCustomerCount} eligible customers)
+              </label>
+              <div className="border rounded-lg p-4 max-h-64 overflow-y-auto">
+                <div className="flex items-center gap-2 mb-3 pb-3 border-b">
+                  <Checkbox
+                    checked={selectAllCustomers}
+                    onCheckedChange={handleSelectAllCustomers}
+                  />
+                  <label className="font-medium">Send to all eligible customers ({eligibleCustomerCount})</label>
+                </div>
+                <div className="space-y-2">
+                  {customers.map(customer => (
+                    <div key={customer.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted/50">
+                      <Checkbox
+                        checked={selectAllCustomers || selectedCustomers.includes(customer.id)}
+                        onCheckedChange={(checked) => handleCustomerSelection(customer.id, checked as boolean)}
+                        disabled={customer.opt_out || selectAllCustomers}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{customer.full_name}</span>
+                          {customer.opt_out && (
+                            <Badge variant="destructive" className="text-xs">Opted Out</Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {selectedChannel === 'whatsapp' ? customer.phone : customer.email} • 
+                          {customer.location} • ${customer.total_spent} spent
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-sm text-muted-foreground mt-2">
+                Selected: {selectedEligibleCount} recipients
+              </div>
+            </div>
+
             {/* Preview */}
             <div>
               <label className="text-sm font-medium mb-2 block">Preview</label>
@@ -341,14 +580,97 @@ export function CampaignTemplates() {
                 <div className="whitespace-pre-wrap text-sm">
                   {replaceVariables(editedContent)}
                 </div>
+                {selectedChannel === 'whatsapp' && (
+                  <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                    + Automatic opt-out footer: "Reply STOP to opt out from future messages."
+                  </div>
+                )}
+                {selectedChannel === 'email' && (
+                  <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                    + Automatic opt-out footer with unsubscribe instructions
+                  </div>
+                )}
               </Card>
             </div>
 
+            {/* Send Results */}
+            {showResults && sendResults && (
+              <div>
+                <label className="text-sm font-medium mb-3 block">Campaign Results</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <Card className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <Users className="w-4 h-4" />
+                      <span className="text-sm font-medium">Total</span>
+                    </div>
+                    <div className="text-2xl font-bold">{sendResults.total}</div>
+                  </Card>
+                  <Card className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="text-sm font-medium">Sent</span>
+                    </div>
+                    <div className="text-2xl font-bold text-green-500">{sendResults.sent}</div>
+                  </Card>
+                  <Card className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <XCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm font-medium">Failed</span>
+                    </div>
+                    <div className="text-2xl font-bold text-red-500">{sendResults.failed}</div>
+                  </Card>
+                  <Card className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                      <span className="text-sm font-medium">Opted Out</span>
+                    </div>
+                    <div className="text-2xl font-bold text-yellow-500">{sendResults.optedOut}</div>
+                  </Card>
+                </div>
+                {sendResults.details.length > 0 && (
+                  <Card className="p-4 max-h-48 overflow-y-auto">
+                    <h4 className="font-medium mb-2">Detailed Results</h4>
+                    <div className="space-y-2">
+                      {sendResults.details.map((detail, index) => (
+                        <div key={index} className="flex items-center gap-2 text-sm">
+                          {detail.status === 'sent' ? (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-500" />
+                          )}
+                          <span>{detail.customer}</span>
+                          <span className="text-muted-foreground">
+                            ({selectedChannel === 'whatsapp' ? detail.phone : detail.email})
+                          </span>
+                          {detail.error && (
+                            <span className="text-red-500 text-xs">{detail.error}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+
             {/* Actions */}
             <div className="flex gap-3 pt-4">
-              <Button onClick={handleSendCampaign} className="flex-1">
-                <Send className="w-4 h-4 mr-2" />
-                Send Campaign
+              <Button 
+                onClick={handleSendCampaign} 
+                className="flex-1"
+                disabled={isSending || selectedEligibleCount === 0}
+              >
+                {isSending ? (
+                  <>
+                    <Clock className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send {selectedChannel === 'whatsapp' ? 'WhatsApp' : 'Email'} Campaign ({selectedEligibleCount})
+                  </>
+                )}
               </Button>
               <Button variant="outline" onClick={() => setSelectedTemplate(null)}>
                 Cancel
