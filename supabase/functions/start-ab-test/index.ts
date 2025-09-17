@@ -175,15 +175,18 @@ serve(async (req) => {
         customerUpdates.push(update);
       }
 
-      // Batch update customer results
+      // Batch update customer results - Fix: Use proper customer_id from results
       for (const customerUpdate of customerUpdates) {
-        const { id, ...updateData } = customerUpdate;
-        await supabase
-          .from('ab_test_results')
-          .update(updateData)
-          .eq('ab_test_id', testId)
-          .eq('variation_id', variation.id)
-          .eq('customer_id', id);
+        const originalResult = sortedResults.find((_, idx) => idx === customerUpdates.indexOf(customerUpdate));
+        if (originalResult) {
+          const { id, ...updateData } = customerUpdate;
+          await supabase
+            .from('ab_test_results')
+            .update(updateData)
+            .eq('ab_test_id', testId)
+            .eq('variation_id', variation.id)
+            .eq('customer_id', originalResult.customer_id);
+        }
       }
     }
 

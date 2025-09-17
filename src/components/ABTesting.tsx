@@ -550,7 +550,10 @@ export function ABTesting() {
           <Brain className="w-8 h-8 text-primary" />
           <div>
             <h1 className="text-3xl font-bold">AI-Powered A/B Testing</h1>
-            <p className="text-muted-foreground">Smart campaign optimization with real customer data</p>
+            <p className="text-muted-foreground flex items-center gap-2">
+              <Database className="w-4 h-4 text-success" />
+              Smart campaign optimization with real customer data • {campaigns.length} campaigns loaded
+            </p>
           </div>
         </div>
         <div className="flex gap-2">

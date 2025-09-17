@@ -20,7 +20,8 @@ import {
   MapPin,
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  Database
 } from "lucide-react";
 import { useCustomers, Customer } from "@/hooks/useCustomers";
 import { CustomerForm } from "@/components/CustomerForm";
@@ -119,7 +120,10 @@ export function CustomerManagement() {
             <Users className="w-8 h-8" />
             Customer Management
           </h1>
-          <p className="text-muted-foreground">Real customer data from iFood marketing dataset</p>
+          <p className="text-muted-foreground flex items-center gap-2">
+            <Database className="w-4 h-4 text-success" />
+            Real customer data from iFood marketing dataset • {customers.length} customers loaded
+          </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleAddNewCustomer} size="lg">

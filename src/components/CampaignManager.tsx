@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Users, MessageSquare, TrendingUp, Play, Pause, Edit, Trash2, Database, DollarSign } from 'lucide-react';
+import { Calendar, Clock, Users, MessageSquare, TrendingUp, Play, Pause, Edit, Trash2, Database, DollarSign, Brain } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -15,11 +15,11 @@ import { Progress } from '@/components/ui/progress';
 interface Campaign {
   id: string;
   name: string;
-  type: 'whatsapp' | 'email' | 'sms';
-  status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed';
+  type: 'promotional' | 'onboarding' | 'announcement' | 'survey';
+  status: 'draft' | 'active' | 'paused' | 'completed';
   target_audience: string;
   message_template: string;
-  schedule_type: 'now' | 'scheduled';
+  schedule_type: 'now' | 'schedule';
   scheduled_time?: string;
   audience_count: number;
   sent_count: number;
@@ -59,10 +59,10 @@ const CampaignManager = () => {
 
   const [formData, setFormData] = useState({
     name: '',
-    type: 'whatsapp' as 'whatsapp' | 'email' | 'sms',
+    type: 'promotional' as 'promotional' | 'onboarding' | 'announcement' | 'survey',
     target_audience: '',
     message_template: '',
-    schedule_type: 'now' as 'now' | 'scheduled',
+    schedule_type: 'now' as 'now' | 'schedule',
     scheduled_time: '',
   });
 
@@ -163,6 +163,32 @@ const CampaignManager = () => {
       default:
         return eligibleCustomers;
     }
+  };
+
+  const generateCampaignPrompt = () => {
+    const eligibleCustomers = getEligibleCustomers(formData.target_audience);
+    const avgSpent = eligibleCustomers.length > 0 
+      ? eligibleCustomers.reduce((sum, c) => sum + c.total_spent, 0) / eligibleCustomers.length 
+      : 0;
+    
+    let prompt = "";
+    
+    if (formData.type === 'promotional') {
+      prompt = `🎉 Exciting offer for our ${formData.target_audience} customers! Based on your average spending of $${avgSpent.toFixed(0)}, we have a special promotion just for you. Don't miss out on this limited-time deal! {{customer_name}}, this could save you significantly on your next purchase.`;
+    } else if (formData.type === 'onboarding') {
+      prompt = `Welcome {{customer_name}}! We're thrilled to have you join our community of ${eligibleCustomers.length} valued customers. As someone from ${formData.target_audience}, we've prepared special onboarding benefits just for you. Let's get started on your journey with us!`;
+    } else if (formData.type === 'announcement') {
+      prompt = `Important update for our ${formData.target_audience} customers: We've made exciting improvements to better serve customers like you, {{customer_name}}. With an average spending of $${avgSpent.toFixed(0)}, your feedback has shaped these changes.`;
+    } else if (formData.type === 'survey') {
+      prompt = `Hi {{customer_name}}, your opinion matters! As one of our valued ${formData.target_audience} customers with $${avgSpent.toFixed(0)} in spending, we'd love to hear your thoughts. This quick 2-minute survey will help us serve you better.`;
+    }
+    
+    setFormData({...formData, message_template: prompt});
+    
+    toast({
+      title: "Message Generated",
+      description: `AI-generated ${formData.type} message based on your selected filters!`,
+    });
   };
 
   const replaceVariables = (template: string, customer: Customer) => {
@@ -287,12 +313,12 @@ const CampaignManager = () => {
         .insert({
           user_id: user.id,
           name: formData.name,
-          type: formData.type,
+          type: formData.type || 'promotional', // Fix: Use valid type from constraint
           message_template: formData.message_template,
           target_audience: formData.target_audience,
           schedule_type: formData.schedule_type,
           scheduled_time: formData.scheduled_time || null,
-          status: formData.schedule_type === 'now' ? 'draft' : 'scheduled',
+          status: formData.schedule_type === 'now' ? 'draft' : 'active',
           audience_count: eligibleCustomers.length,
           sent_count: 0,
           opened_count: 0,
@@ -313,10 +339,10 @@ const CampaignManager = () => {
       setShowCreateForm(false);
       setFormData({
         name: '',
-        type: 'whatsapp',
+        type: 'promotional' as 'promotional' | 'onboarding' | 'announcement' | 'survey',
         target_audience: '',
         message_template: '',
-        schedule_type: 'now',
+        schedule_type: 'now' as 'now' | 'schedule',
         scheduled_time: '',
       });
       
@@ -575,9 +601,10 @@ const CampaignManager = () => {
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="sms">SMS</SelectItem>
+                    <SelectItem value="promotional">Promotional</SelectItem>
+                    <SelectItem value="onboarding">Onboarding</SelectItem>
+                    <SelectItem value="announcement">Announcement</SelectItem>
+                    <SelectItem value="survey">Survey</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -628,11 +655,11 @@ const CampaignManager = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="now">Send Now</SelectItem>
-                    <SelectItem value="scheduled">Schedule Later</SelectItem>
+                    <SelectItem value="schedule">Schedule Later</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {formData.schedule_type === 'scheduled' && (
+              {formData.schedule_type === 'schedule' && (
                 <div>
                   <Label htmlFor="scheduled_time">Scheduled Time</Label>
                   <Input
