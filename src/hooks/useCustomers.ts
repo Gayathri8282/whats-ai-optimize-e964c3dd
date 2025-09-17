@@ -15,6 +15,7 @@ export interface Customer {
   total_purchases: number;
   campaigns_accepted: number;
   complain: boolean;
+  opt_out?: boolean;
   mnt_wines: number;
   mnt_fruits: number;
   mnt_meat_products: number;
@@ -133,6 +134,92 @@ export function useCustomers(limit: number = 50) {
     }
   };
 
+  const addCustomer = async (customerData: Partial<Customer>) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      const newCustomer = {
+        ...customerData,
+        user_id: user.id,
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('customers')
+        .insert(newCustomer as any)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Refresh the customers list
+      await fetchCustomers();
+      
+      return data;
+    } catch (err) {
+      console.error('Error adding customer:', err);
+      throw err;
+    }
+  };
+
+  const updateCustomer = async (customerId: string, customerData: Partial<Customer>) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      const { data, error } = await supabase
+        .from('customers')
+        .update({
+          ...customerData,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', customerId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Refresh the customers list
+      await fetchCustomers();
+      
+      return data;
+    } catch (err) {
+      console.error('Error updating customer:', err);
+      throw err;
+    }
+  };
+
+  const deleteCustomer = async (customerId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Refresh the customers list
+      await fetchCustomers();
+      
+      return true;
+    } catch (err) {
+      console.error('Error deleting customer:', err);
+      throw err;
+    }
+  };
+
   useEffect(() => {
     fetchCustomers();
   }, [limit]);
@@ -143,6 +230,9 @@ export function useCustomers(limit: number = 50) {
     isLoading,
     error,
     refetch: fetchCustomers,
-    findSimilarCustomers
+    findSimilarCustomers,
+    addCustomer,
+    updateCustomer,
+    deleteCustomer
   };
 }

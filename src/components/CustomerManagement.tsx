@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import {
   Search,
   Users,
@@ -16,16 +17,22 @@ import {
   Brain,
   TrendingUp,
   ShoppingCart,
-  MapPin
+  MapPin,
+  Plus,
+  Edit2,
+  Trash2
 } from "lucide-react";
 import { useCustomers, Customer } from "@/hooks/useCustomers";
+import { CustomerForm } from "@/components/CustomerForm";
 import { useToast } from "@/hooks/use-toast";
 
 export function CustomerManagement() {
-  const { customers, segments, isLoading, findSimilarCustomers } = useCustomers();
+  const { customers, segments, isLoading, findSimilarCustomers, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [similarCustomers, setSimilarCustomers] = useState<Customer[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const { toast } = useToast();
 
   const filteredCustomers = customers.filter(customer =>
@@ -44,6 +51,42 @@ export function CustomerManagement() {
     } catch (error) {
       console.error('Error finding similar customers:', error);
     }
+  };
+
+  const handleSaveCustomer = async (customerData: Partial<Customer>) => {
+    if (editingCustomer) {
+      await updateCustomer(editingCustomer.id, customerData);
+    } else {
+      await addCustomer(customerData);
+    }
+    setIsFormOpen(false);
+    setEditingCustomer(null);
+  };
+
+  const handleEditCustomer = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteCustomer = async (customerId: string) => {
+    try {
+      await deleteCustomer(customerId);
+      toast({
+        title: "Customer Deleted",
+        description: "Customer has been successfully deleted",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete customer",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddNewCustomer = () => {
+    setEditingCustomer(null);
+    setIsFormOpen(true);
   };
 
   const getCustomerSegment = (customer: Customer) => {
@@ -84,6 +127,10 @@ export function CustomerManagement() {
           <p className="text-muted-foreground">Real customer data from iFood marketing dataset</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={handleAddNewCustomer} size="lg">
+            <Plus className="w-5 h-5 mr-2" />
+            Add New Customer
+          </Button>
           <Button variant="outline" size="lg">
             <Filter className="w-5 h-5 mr-2" />
             Filters
@@ -189,16 +236,76 @@ export function CustomerManagement() {
                       <Badge variant="outline">{getCustomerSegment(customer)}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewCustomer(customer)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </DialogTrigger>
+                      <div className="flex gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleViewCustomer(customer)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center gap-2">
+                                <Users className="w-5 h-5" />
+                                Customer Profile: {customer.full_name}
+                              </DialogTitle>
+                            </DialogHeader>
+                            {selectedCustomer && (
+                              <div className="space-y-6">
+                                {/* Customer Details - keeping existing content */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <h4 className="font-semibold mb-2">Contact Information</h4>
+                                      <div className="space-y-1 text-sm">
+                                        <p><strong>Email:</strong> {selectedCustomer.email}</p>
+                                        <p><strong>Phone:</strong> {selectedCustomer.phone}</p>
+                                        <p><strong>Location:</strong> {selectedCustomer.location}</p>
+                                        <p><strong>Age:</strong> {selectedCustomer.age}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditCustomer(customer)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete {customer.full_name}? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
                         <DialogContent className="max-w-2xl">
                           <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
