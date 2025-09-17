@@ -243,6 +243,7 @@ export function CustomerManagement() {
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleViewCustomer(customer)}
+                              title="View Details"
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -256,7 +257,7 @@ export function CustomerManagement() {
                             </DialogHeader>
                             {selectedCustomer && (
                               <div className="space-y-6">
-                                {/* Customer Details - keeping existing content */}
+                                {/* Customer Details */}
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-4">
                                     <div>
@@ -268,7 +269,71 @@ export function CustomerManagement() {
                                         <p><strong>Age:</strong> {selectedCustomer.age}</p>
                                       </div>
                                     </div>
+                                    
+                                    <div>
+                                      <h4 className="font-semibold mb-2">Financial Profile</h4>
+                                      <div className="space-y-1 text-sm">
+                                        <p><strong>Income:</strong> ${selectedCustomer.income?.toLocaleString()}</p>
+                                        <p><strong>Total Spent:</strong> ${selectedCustomer.total_spent.toFixed(2)}</p>
+                                        <p><strong>Recency:</strong> {selectedCustomer.recency} days</p>
+                                      </div>
+                                    </div>
                                   </div>
+                                  
+                                  <div className="space-y-4">
+                                    <div>
+                                      <h4 className="font-semibold mb-2">Purchase Behavior</h4>
+                                      <div className="space-y-1 text-sm">
+                                        <p><strong>Wines:</strong> ${selectedCustomer.mnt_wines?.toFixed(2)}</p>
+                                        <p><strong>Fruits:</strong> ${selectedCustomer.mnt_fruits?.toFixed(2)}</p>
+                                        <p><strong>Meat:</strong> ${selectedCustomer.mnt_meat_products?.toFixed(2)}</p>
+                                        <p><strong>Gold:</strong> ${selectedCustomer.mnt_gold_prods?.toFixed(2)}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div>
+                                      <h4 className="font-semibold mb-2">Campaign Engagement</h4>
+                                      <div className="space-y-1 text-sm">
+                                        <p><strong>Campaigns Accepted:</strong> {selectedCustomer.campaigns_accepted}/5</p>
+                                        <p><strong>Total Purchases:</strong> {selectedCustomer.total_purchases}</p>
+                                        <p><strong>Complaints:</strong> {selectedCustomer.complain ? 'Yes' : 'No'}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Similar Customers */}
+                                {similarCustomers.length > 0 && (
+                                  <div>
+                                    <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                      <Brain className="w-4 h-4" />
+                                      Similar Customers (AI Analysis)
+                                    </h4>
+                                    <div className="space-y-2">
+                                      {similarCustomers.slice(0, 3).map((similar) => (
+                                        <div key={similar.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                                          <div className="text-sm">
+                                            <span className="font-medium">{similar.full_name}</span>
+                                            <span className="text-muted-foreground ml-2">${similar.total_spent.toFixed(2)}</span>
+                                          </div>
+                                          <Badge variant="outline" className="text-xs">
+                                            {getCustomerSegment(similar)}
+                                          </Badge>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                <div className="flex gap-2">
+                                  <Button variant="default" className="flex-1">
+                                    <MessageSquare className="w-4 h-4 mr-2" />
+                                    Send Campaign
+                                  </Button>
+                                  <Button variant="outline" className="flex-1">
+                                    <TrendingUp className="w-4 h-4 mr-2" />
+                                    View Analytics
+                                  </Button>
                                 </div>
                               </div>
                             )}
@@ -279,13 +344,14 @@ export function CustomerManagement() {
                           variant="ghost" 
                           size="sm"
                           onClick={() => handleEditCustomer(customer)}
+                          title="Edit Customer"
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" title="Delete Customer">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -306,98 +372,6 @@ export function CustomerManagement() {
                         </AlertDialog>
                       </div>
                     </TableCell>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                              <Users className="w-5 h-5" />
-                              Customer Profile: {customer.full_name}
-                            </DialogTitle>
-                          </DialogHeader>
-                          {selectedCustomer && (
-                            <div className="space-y-6">
-                              {/* Customer Details */}
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Contact Information</h4>
-                                    <div className="space-y-1 text-sm">
-                                      <p><strong>Email:</strong> {selectedCustomer.email}</p>
-                                      <p><strong>Phone:</strong> {selectedCustomer.phone}</p>
-                                      <p><strong>Location:</strong> {selectedCustomer.location}</p>
-                                      <p><strong>Age:</strong> {selectedCustomer.age}</p>
-                                    </div>
-                                  </div>
-                                  
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Financial Profile</h4>
-                                    <div className="space-y-1 text-sm">
-                                      <p><strong>Income:</strong> ${selectedCustomer.income?.toLocaleString()}</p>
-                                      <p><strong>Total Spent:</strong> ${selectedCustomer.total_spent.toFixed(2)}</p>
-                                      <p><strong>Recency:</strong> {selectedCustomer.recency} days</p>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="space-y-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Purchase Behavior</h4>
-                                    <div className="space-y-1 text-sm">
-                                      <p><strong>Wines:</strong> ${selectedCustomer.mnt_wines?.toFixed(2)}</p>
-                                      <p><strong>Fruits:</strong> ${selectedCustomer.mnt_fruits?.toFixed(2)}</p>
-                                      <p><strong>Meat:</strong> ${selectedCustomer.mnt_meat_products?.toFixed(2)}</p>
-                                      <p><strong>Gold:</strong> ${selectedCustomer.mnt_gold_prods?.toFixed(2)}</p>
-                                    </div>
-                                  </div>
-                                  
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Campaign Engagement</h4>
-                                    <div className="space-y-1 text-sm">
-                                      <p><strong>Campaigns Accepted:</strong> {selectedCustomer.campaigns_accepted}/5</p>
-                                      <p><strong>Total Purchases:</strong> {selectedCustomer.total_purchases}</p>
-                                      <p><strong>Complaints:</strong> {selectedCustomer.complain ? 'Yes' : 'No'}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Similar Customers */}
-                              {similarCustomers.length > 0 && (
-                                <div>
-                                  <h4 className="font-semibold mb-2 flex items-center gap-2">
-                                    <Brain className="w-4 h-4" />
-                                    Similar Customers (AI Analysis)
-                                  </h4>
-                                  <div className="space-y-2">
-                                    {similarCustomers.slice(0, 3).map((similar) => (
-                                      <div key={similar.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                                        <div className="text-sm">
-                                          <span className="font-medium">{similar.full_name}</span>
-                                          <span className="text-muted-foreground ml-2">${similar.total_spent.toFixed(2)}</span>
-                                        </div>
-                                        <Badge variant="outline" className="text-xs">
-                                          {getCustomerSegment(similar)}
-                                        </Badge>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              <div className="flex gap-2">
-                                <Button variant="default" className="flex-1">
-                                  <MessageSquare className="w-4 h-4 mr-2" />
-                                  Send Campaign
-                                </Button>
-                                <Button variant="outline" className="flex-1">
-                                  <TrendingUp className="w-4 h-4 mr-2" />
-                                  View Analytics
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </DialogContent>
-                      </Dialog>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -411,6 +385,17 @@ export function CustomerManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Customer Form Modal */}
+      <CustomerForm
+        isOpen={isFormOpen}
+        onClose={() => {
+          setIsFormOpen(false);
+          setEditingCustomer(null);
+        }}
+        customer={editingCustomer}
+        onSave={handleSaveCustomer}
+      />
     </div>
   );
 }
