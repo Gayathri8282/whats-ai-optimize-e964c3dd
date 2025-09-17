@@ -578,6 +578,51 @@ export function ABTesting() {
     }));
   };
 
+  const getVariationResults = async (testId: string) => {
+    try {
+      const { data: results, error } = await supabase
+        .from('ab_test_results')
+        .select(`
+          *,
+          customers!inner(full_name, email, phone, total_spent)
+        `)
+        .eq('ab_test_id', testId);
+
+      if (error) throw error;
+      return results || [];
+    } catch (error) {
+      console.error('Error fetching variation results:', error);
+      return [];
+    }
+  };
+
+  const analyzeResults = (results: any[]) => {
+    const analysis: { [key: string]: any } = {};
+    
+    results.forEach(result => {
+      const variationId = result.variation_id;
+      if (!analysis[variationId]) {
+        analysis[variationId] = {
+          total: 0,
+          sent: 0,
+          opened: 0,
+          clicked: 0,
+          converted: 0,
+          totalRevenue: 0
+        };
+      }
+      
+      analysis[variationId].total++;
+      if (result.message_sent) analysis[variationId].sent++;
+      if (result.opened) analysis[variationId].opened++;
+      if (result.clicked) analysis[variationId].clicked++;
+      if (result.converted) analysis[variationId].converted++;
+      analysis[variationId].totalRevenue += result.revenue || 0;
+    });
+    
+    return analysis;
+  };
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -822,7 +867,10 @@ export function ABTesting() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Tests</p>
-                <p className="text-2xl font-bold">{abTests.length}</p>
+                <p className="text-2xl font-bold">{abTests.filter(t => !t.name.includes('[TEST]')).length}</p>
+                <p className="text-xs text-muted-foreground">
+                  {abTests.filter(t => t.name.includes('[TEST]')).length} test campaigns
+                </p>
               </div>
               <Target className="w-8 h-8 text-primary" />
             </div>
@@ -1031,31 +1079,51 @@ export function ABTesting() {
                                 {variation.message_template}
                               </p>
                               
-                              <div className="grid grid-cols-4 gap-4 text-sm">
-                                <div>
-                                  <p className="text-muted-foreground">Sent</p>
-                                  <p className="font-semibold">{variation.sent_count}</p>
+                                <div className="grid grid-cols-4 gap-4 text-sm">
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground">Sent</p>
+                                    <p className="font-semibold text-lg">{variation.sent_count}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground">Opened</p>
+                                    <p className="font-semibold text-lg text-blue-600">{variation.opened_count}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {variation.sent_count > 0 ? ((variation.opened_count / variation.sent_count) * 100).toFixed(1) : 0}%
+                                    </p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground">Clicked</p>
+                                    <p className="font-semibold text-lg text-green-600">{variation.clicked_count}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {variation.sent_count > 0 ? ((variation.clicked_count / variation.sent_count) * 100).toFixed(1) : 0}% CTR
+                                    </p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground">Converted</p>
+                                    <p className="font-semibold text-lg text-purple-600">{variation.conversion_count}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {variation.clicked_count > 0 ? ((variation.conversion_count / variation.clicked_count) * 100).toFixed(1) : 0}%
+                                    </p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="text-muted-foreground">Opened</p>
-                                  <p className="font-semibold">{variation.opened_count}</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">Clicked</p>
-                                  <p className="font-semibold">{variation.clicked_count}</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">Converted</p>
-                                  <p className="font-semibold">{variation.conversion_count}</p>
-                                </div>
-                              </div>
                               
-                              <div className="mt-3">
-                                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                              <div className="mt-4 space-y-2">
+                                <div className="flex justify-between text-xs text-muted-foreground">
                                   <span>Click-through Rate</span>
                                   <span>{variation.ctr.toFixed(2)}%</span>
                                 </div>
-                                <Progress value={variation.ctr} className="h-2" />
+                                <Progress value={Math.min(variation.ctr, 20)} className="h-2" />
+                                
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                  <span>Conversion Rate</span>
+                                  <span>
+                                    {variation.clicked_count > 0 ? ((variation.conversion_count / variation.clicked_count) * 100).toFixed(1) : 0}%
+                                  </span>
+                                </div>
+                                <Progress 
+                                  value={variation.clicked_count > 0 ? Math.min(((variation.conversion_count / variation.clicked_count) * 100), 50) : 0} 
+                                  className="h-2" 
+                                />
                               </div>
                             </CardContent>
                           </Card>

@@ -36,9 +36,20 @@ export function CustomerManagement() {
   const [similarCustomers, setSimilarCustomers] = useState<Customer[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [showTestData, setShowTestData] = useState(true);
   const { toast } = useToast();
 
-  const filteredCustomers = customers.filter(customer =>
+  // Separate real and test customers
+  const realCustomers = customers.filter(c => !c.email.includes('@ifood.com'));
+  const testCustomers = customers.filter(c => c.email.includes('@ifood.com'));
+
+  const filteredRealCustomers = realCustomers.filter(customer =>
+    customer.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredTestCustomers = testCustomers.filter(customer =>
     customer.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.location.toLowerCase().includes(searchTerm.toLowerCase())
@@ -115,16 +126,16 @@ export function CustomerManagement() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gradient-primary flex items-center gap-2">
-            <Users className="w-8 h-8" />
-            Customer Management
-          </h1>
-          <p className="text-muted-foreground flex items-center gap-2">
-            <Database className="w-4 h-4 text-success" />
-            Real customer data from iFood marketing dataset • {customers.length} customers loaded
-          </p>
-        </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gradient-primary flex items-center gap-2">
+              <Users className="w-8 h-8" />
+              Customer Management
+            </h1>
+            <p className="text-muted-foreground flex items-center gap-2">
+              <Database className="w-4 h-4 text-success" />
+              {realCustomers.length} real customers • {testCustomers.length} test customers
+            </p>
+          </div>
         <div className="flex gap-2">
           <Button onClick={handleAddNewCustomer} size="lg">
             <Plus className="w-5 h-5 mr-2" />
@@ -206,21 +217,27 @@ export function CustomerManagement() {
             </Button>
           </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Total Spent</TableHead>
-                  <TableHead>Purchases</TableHead>
-                  <TableHead>Engagement</TableHead>
-                  <TableHead>Segment</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.slice(0, 20).map((customer) => (
+          <div className="space-y-6">
+            {/* Real Customers */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Real Customers ({realCustomers.length})</h3>
+              </div>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Total Spent</TableHead>
+                      <TableHead>Purchases</TableHead>
+                      <TableHead>Engagement</TableHead>
+                      <TableHead>Segment</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRealCustomers.slice(0, 10).map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell>
                       <div>
@@ -383,16 +400,202 @@ export function CustomerManagement() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          
-          {filteredCustomers.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No customers found matching your search.</p>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {filteredRealCustomers.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No real customers found. Add customers or adjust your search.</p>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Test Data Section */}
+            {testCustomers.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-orange-600">Test Data ({testCustomers.length})</h3>
+                    <Badge variant="outline" className="text-orange-600 border-orange-200">
+                      Seeded Data
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTestData(!showTestData)}
+                  >
+                    {showTestData ? 'Hide' : 'Show'} Test Data
+                  </Button>
+                </div>
+                
+                {showTestData && (
+                  <div className="rounded-md border border-orange-200 bg-orange-50/20">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Location</TableHead>
+                          <TableHead>Total Spent</TableHead>
+                          <TableHead>Purchases</TableHead>
+                          <TableHead>Engagement</TableHead>
+                          <TableHead>Segment</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredTestCustomers.slice(0, 10).map((customer) => (
+                          <TableRow key={customer.id}>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{customer.full_name}</div>
+                                <div className="text-sm text-muted-foreground">{customer.email}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {customer.city && customer.country 
+                                ? `${customer.city}, ${getCountryByCode(customer.country)?.name || customer.country}`
+                                : customer.location}
+                            </TableCell>
+                            <TableCell className="font-medium">${customer.total_spent.toFixed(2)}</TableCell>
+                            <TableCell>{customer.total_purchases}</TableCell>
+                            <TableCell>
+                              <Badge variant={getEngagementLevel(customer) === 'High' ? 'default' : 
+                                           getEngagementLevel(customer) === 'Medium' ? 'secondary' : 'outline'}>
+                                {getEngagementLevel(customer)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{getCustomerSegment(customer)}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => handleViewCustomer(customer)}
+                                      title="View Details"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl">
+                                    <DialogHeader>
+                                      <DialogTitle className="flex items-center gap-2">
+                                        <Users className="w-5 h-5" />
+                                        Customer Profile: {customer.full_name}
+                                        <Badge variant="outline" className="text-orange-600 border-orange-200">
+                                          Test Data
+                                        </Badge>
+                                      </DialogTitle>
+                                    </DialogHeader>
+                                    {selectedCustomer && (
+                                      <div className="space-y-6">
+                                        {/* Customer Details */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <div className="space-y-4">
+                                            <div>
+                                              <h4 className="font-semibold mb-2">Contact Information</h4>
+                                              <div className="space-y-1 text-sm">
+                                                <p><strong>Email:</strong> {selectedCustomer.email}</p>
+                                                <p><strong>Phone:</strong> {selectedCustomer.phone}</p>
+                                                <p><strong>Location:</strong> {selectedCustomer.location}</p>
+                                                <p><strong>Age:</strong> {selectedCustomer.age}</p>
+                                              </div>
+                                            </div>
+                                            
+                                            <div>
+                                              <h4 className="font-semibold mb-2">Financial Profile</h4>
+                                              <div className="space-y-1 text-sm">
+                                                <p><strong>Income:</strong> ${selectedCustomer.income?.toLocaleString()}</p>
+                                                <p><strong>Total Spent:</strong> ${selectedCustomer.total_spent.toFixed(2)}</p>
+                                                <p><strong>Recency:</strong> {selectedCustomer.recency} days</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          
+                                          <div className="space-y-4">
+                                            <div>
+                                              <h4 className="font-semibold mb-2">Purchase Behavior</h4>
+                                              <div className="space-y-1 text-sm">
+                                                <p><strong>Wines:</strong> ${selectedCustomer.mnt_wines?.toFixed(2)}</p>
+                                                <p><strong>Fruits:</strong> ${selectedCustomer.mnt_fruits?.toFixed(2)}</p>
+                                                <p><strong>Meat:</strong> ${selectedCustomer.mnt_meat_products?.toFixed(2)}</p>
+                                                <p><strong>Gold:</strong> ${selectedCustomer.mnt_gold_prods?.toFixed(2)}</p>
+                                              </div>
+                                            </div>
+                                            
+                                            <div>
+                                              <h4 className="font-semibold mb-2">Campaign Engagement</h4>
+                                              <div className="space-y-1 text-sm">
+                                                <p><strong>Campaigns Accepted:</strong> {selectedCustomer.campaigns_accepted}/5</p>
+                                                <p><strong>Total Purchases:</strong> {selectedCustomer.total_purchases}</p>
+                                                <p><strong>Complaints:</strong> {selectedCustomer.complain ? 'Yes' : 'No'}</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex gap-2">
+                                          <Button variant="default" className="flex-1">
+                                            <MessageSquare className="w-4 h-4 mr-2" />
+                                            Send Campaign
+                                          </Button>
+                                          <Button variant="outline" className="flex-1">
+                                            <TrendingUp className="w-4 h-4 mr-2" />
+                                            View Analytics
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </DialogContent>
+                                </Dialog>
+                                
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleEditCustomer(customer)}
+                                  title="Edit Customer"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                                
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="sm" title="Delete Customer">
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Test Customer</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete {customer.full_name}? This test customer will be removed permanently.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

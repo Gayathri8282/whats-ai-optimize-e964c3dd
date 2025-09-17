@@ -54,8 +54,14 @@ const CampaignManager = () => {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [showTestData, setShowTestData] = useState(true);
   const [user, setUser] = useState<any>(null);
   const { toast } = useToast();
+
+  // Separate real and test campaigns
+  const realCampaigns = campaigns.filter(c => !c.name.includes('[TEST]'));
+  const testCampaigns = campaigns.filter(c => c.name.includes('[TEST]'));
 
   const [formData, setFormData] = useState({
     name: '',
@@ -197,6 +203,64 @@ const CampaignManager = () => {
       .replace(/\{\{customer_location\}\}/g, customer.location)
       .replace(/\{\{customer_email\}\}/g, customer.email)
       .replace(/\{\{total_spent\}\}/g, `$${customer.total_spent.toFixed(2)}`);
+  };
+
+  const sendWhatsAppCampaign = async (campaign: Campaign) => {
+    setIsSendingWhatsApp(true);
+    try {
+      const eligibleCustomers = getEligibleCustomers(campaign.target_audience);
+      
+      if (eligibleCustomers.length === 0) {
+        throw new Error('No eligible customers found for WhatsApp campaign');
+      }
+
+      // For each customer, open WhatsApp deep link
+      for (const customer of eligibleCustomers.slice(0, 10)) { // Limit to 10 for demo
+        const personalizedMessage = replaceVariables(campaign.message_template, customer);
+        const encodedMessage = encodeURIComponent(personalizedMessage);
+        const formattedPhone = formatPhoneForWhatsApp(customer.phone);
+        
+        // Open WhatsApp with pre-filled message
+        const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+        window.open(whatsappUrl, '_blank');
+        
+        // Small delay between opens to prevent browser blocking
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      toast({
+        title: "WhatsApp Campaign Started",
+        description: `Opened WhatsApp for ${Math.min(eligibleCustomers.length, 10)} customers`,
+      });
+
+    } catch (error: any) {
+      console.error('WhatsApp campaign error:', error);
+      toast({
+        title: "WhatsApp Campaign Failed",
+        description: error.message || "Failed to send WhatsApp campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
+  const formatPhoneForWhatsApp = (phone: string): string => {
+    // Remove all non-digits and format for WhatsApp
+    const cleaned = phone.replace(/\D/g, '');
+    
+    // If it's US format (10 digits), add 1
+    if (cleaned.length === 10) {
+      return `1${cleaned}`;
+    } 
+    // If it's US format with country code (11 digits starting with 1), use as is
+    else if (cleaned.length === 11 && cleaned.startsWith('1')) {
+      return cleaned;
+    } 
+    // For international numbers starting with +, remove + 
+    else {
+      return cleaned;
+    }
   };
 
   const runCampaign = async (campaignId: string) => {
@@ -449,7 +513,10 @@ const CampaignManager = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Campaigns</p>
-                    <p className="text-2xl font-bold">{campaigns.length}</p>
+                    <p className="text-2xl font-bold">{realCampaigns.length}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {testCampaigns.length} test campaigns
+                    </p>
                   </div>
                   <MessageSquare className="w-8 h-8 text-primary" />
                 </div>
@@ -500,73 +567,180 @@ const CampaignManager = () => {
           </div>
 
           {/* Campaigns List */}
-          <div className="space-y-4">
-            {campaigns.length === 0 ? (
-              <div className="text-center py-8">
-                <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
-                <p className="text-muted-foreground mb-4">Create your first campaign to get started</p>
-                {customers.length === 0 && (
-                  <p className="text-sm text-muted-foreground mb-4">
-                    💡 Tip: Click "Seed Test Data" to add sample customers and campaigns
-                  </p>
-                )}
-                <Button onClick={() => setShowCreateForm(true)}>
-                  Create Campaign
-                </Button>
+          <div className="space-y-6">
+            {/* Real Campaigns */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Active Campaigns ({realCampaigns.length})</h3>
               </div>
-            ) : (
-              campaigns.map((campaign) => (
-                <Card key={campaign.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold">{campaign.name}</h3>
-                          <Badge className={getStatusColor(campaign.status)}>
-                            {campaign.status}
-                          </Badge>
-                          <Badge variant="outline">{campaign.type}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Target: {campaign.target_audience}
-                        </p>
-                        <div className="text-sm text-muted-foreground">
-                          Audience: {campaign.audience_count} | Sent: {campaign.sent_count} | 
-                          Opened: {campaign.opened_count} | CTR: {campaign.ctr.toFixed(1)}%
-                          {campaign.total_revenue && campaign.total_revenue > 0 && (
-                            <> | Revenue: ${campaign.total_revenue.toLocaleString()} | ROI: {campaign.roi?.toFixed(1) || 0}%</>
-                          )}
-                        </div>
-                        {campaign.status === 'completed' && (
-                          <div className="mt-2">
-                            <Progress value={(campaign.clicked_count / campaign.sent_count) * 100} className="w-48" />
+              <div className="space-y-4">
+                {realCampaigns.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
+                    <p className="text-muted-foreground mb-4">Create your first campaign to get started</p>
+                    <Button onClick={() => setShowCreateForm(true)}>
+                      Create Campaign
+                    </Button>
+                  </div>
+                ) : (
+                  realCampaigns.map((campaign) => (
+                    <Card key={campaign.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="text-lg font-semibold">{campaign.name}</h3>
+                              <Badge className={getStatusColor(campaign.status)}>
+                                {campaign.status}
+                              </Badge>
+                              <Badge variant="outline">{campaign.type}</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Target: {campaign.target_audience}
+                            </p>
+                            <div className="text-sm text-muted-foreground">
+                              Audience: {campaign.audience_count} | Sent: {campaign.sent_count} | 
+                              Opened: {campaign.opened_count} | CTR: {campaign.ctr.toFixed(1)}%
+                              {campaign.total_revenue && campaign.total_revenue > 0 && (
+                                <> | Revenue: ${campaign.total_revenue.toLocaleString()} | ROI: {campaign.roi?.toFixed(1) || 0}%</>
+                              )}
+                            </div>
+                            {campaign.status === 'completed' && (
+                              <div className="mt-2">
+                                <Progress value={(campaign.clicked_count / campaign.sent_count) * 100} className="w-48" />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        {campaign.status === 'draft' && (
-                          <Button 
-                            size="sm" 
-                            onClick={() => runCampaign(campaign.id)}
-                            disabled={isRunning}
-                          >
-                            <Play className="w-4 h-4 mr-1" />
-                            Launch
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => deleteCampaign(campaign.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                          <div className="flex gap-2">
+                            {campaign.status === 'draft' && (
+                              <>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => sendWhatsAppCampaign(campaign)}
+                                  disabled={isSendingWhatsApp}
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                >
+                                  <MessageSquare className="w-4 h-4 mr-1" />
+                                  WhatsApp
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => runCampaign(campaign.id)}
+                                  disabled={isRunning}
+                                >
+                                  <Play className="w-4 h-4 mr-1" />
+                                  Launch
+                                </Button>
+                              </>
+                            )}
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => deleteCampaign(campaign.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Test Campaigns */}
+            {testCampaigns.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-orange-600">Test Campaigns ({testCampaigns.length})</h3>
+                    <Badge variant="outline" className="text-orange-600 border-orange-200">
+                      Seeded Data
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTestData(!showTestData)}
+                  >
+                    {showTestData ? 'Hide' : 'Show'} Test Campaigns
+                  </Button>
+                </div>
+                
+                {showTestData && (
+                  <div className="space-y-4">
+                    {testCampaigns.map((campaign) => (
+                      <Card key={campaign.id} className="hover:shadow-md transition-shadow border-orange-200 bg-orange-50/20">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-lg font-semibold">{campaign.name}</h3>
+                                <Badge className={getStatusColor(campaign.status)}>
+                                  {campaign.status}
+                                </Badge>
+                                <Badge variant="outline">{campaign.type}</Badge>
+                                <Badge variant="outline" className="text-orange-600 border-orange-200">
+                                  Test Data
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-2">
+                                Target: {campaign.target_audience}
+                              </p>
+                              <div className="text-sm text-muted-foreground">
+                                Audience: {campaign.audience_count} | Sent: {campaign.sent_count} | 
+                                Opened: {campaign.opened_count} | CTR: {campaign.ctr.toFixed(1)}%
+                                {campaign.total_revenue && campaign.total_revenue > 0 && (
+                                  <> | Revenue: ${campaign.total_revenue.toLocaleString()} | ROI: {campaign.roi?.toFixed(1) || 0}%</>
+                                )}
+                              </div>
+                              {campaign.status === 'completed' && (
+                                <div className="mt-2">
+                                  <Progress value={(campaign.clicked_count / campaign.sent_count) * 100} className="w-48" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              {campaign.status === 'draft' && (
+                                <>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => sendWhatsAppCampaign(campaign)}
+                                    disabled={isSendingWhatsApp}
+                                    className="text-green-600 border-green-600 hover:bg-green-50"
+                                  >
+                                    <MessageSquare className="w-4 h-4 mr-1" />
+                                    WhatsApp
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => runCampaign(campaign.id)}
+                                    disabled={isRunning}
+                                  >
+                                    <Play className="w-4 h-4 mr-1" />
+                                    Launch
+                                  </Button>
+                                </>
+                              )}
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => deleteCampaign(campaign.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
