@@ -120,17 +120,21 @@ serve(async (req) => {
       throw new Error(`Failed to assign customers to test: ${resultsError.message}`);
     }
 
-    // Simulate sending messages and track metrics
+    // Simulate sending messages and track metrics with more varied results
     for (const variation of variations) {
       const variationResults = results.filter(r => r.variation_id === variation.id);
       const totalAssigned = variationResults.length;
       
-      // Simulate message sending with realistic rates
-      const sentRate = 0.85 + Math.random() * 0.15; // 85-100%
-      const openRate = 0.25 + Math.random() * 0.35; // 25-60%
-      const clickRate = 0.05 + Math.random() * 0.15; // 5-20% of opens
-      const conversionRate = 0.02 + Math.random() * 0.08; // 2-10% of clicks
-      const replyRate = 0.01 + Math.random() * 0.04; // 1-5%
+      // Create more varied performance based on variation name to simulate A/B differences
+      const baseMultiplier = variation.variation_name === 'A' ? 1.0 : 
+                           variation.variation_name === 'B' ? 1.15 : 1.05;
+      
+      // Simulate message sending with realistic but varied rates
+      const sentRate = Math.max(0.80, Math.min(0.95, 0.85 + (Math.random() - 0.5) * 0.2)); // 80-95%
+      const openRate = Math.max(0.20, Math.min(0.65, (0.35 + (Math.random() - 0.5) * 0.3) * baseMultiplier)); // 20-65%
+      const clickRate = Math.max(0.08, Math.min(0.25, (0.12 + (Math.random() - 0.5) * 0.1) * baseMultiplier)); // 8-25% of opens
+      const conversionRate = Math.max(0.05, Math.min(0.15, (0.08 + (Math.random() - 0.5) * 0.06) * baseMultiplier)); // 5-15% of clicks
+      const replyRate = Math.max(0.02, Math.min(0.08, (0.03 + (Math.random() - 0.5) * 0.04) * baseMultiplier)); // 2-8%
 
       const sentCount = Math.floor(totalAssigned * sentRate);
       const openedCount = Math.floor(sentCount * openRate);
@@ -138,7 +142,7 @@ serve(async (req) => {
       const convertedCount = Math.floor(clickedCount * conversionRate);
       const repliedCount = Math.floor(sentCount * replyRate);
       
-      // Calculate CTR and conversion rate
+      // Calculate CTR (based on sent, not opens) and conversion rate for more realistic metrics
       const ctr = sentCount > 0 ? (clickedCount / sentCount) * 100 : 0;
       const convRate = clickedCount > 0 ? (convertedCount / clickedCount) * 100 : 0;
 

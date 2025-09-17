@@ -488,7 +488,26 @@ export function ABTesting() {
         description: `Test is now running with seed test data. Assigned ${data?.customersAssigned || 'multiple'} customers.`,
       });
 
-      await fetchABTests();
+      // Refresh all data to show updated metrics
+      await Promise.all([
+        fetchABTests(),
+        fetchCustomers()
+      ]);
+      
+      // Also refresh the selected test's variations if it's the one we just started
+      if (selectedTest && selectedTest.id === testId) {
+        const { data: updatedVariations } = await supabase
+          .from('ab_test_variations')
+          .select('*')
+          .eq('ab_test_id', testId);
+          
+        if (updatedVariations) {
+          setSelectedTest(prev => prev ? {
+            ...prev,
+            variations: updatedVariations
+          } : prev);
+        }
+      }
     } catch (error: any) {
       console.error('Error starting A/B test:', error);
       toast({
@@ -550,11 +569,12 @@ export function ABTesting() {
     
     return selectedTest.variations.map(variation => ({
       name: `Variant ${variation.variation_name}`,
-      CTR: variation.ctr,
+      CTR: parseFloat(variation.ctr.toFixed(2)),
       Conversions: variation.conversion_count,
       Revenue: variation.conversion_count * 150, // Estimated revenue
       Opens: variation.opened_count,
-      Clicks: variation.clicked_count
+      Clicks: variation.clicked_count,
+      Sent: variation.sent_count
     }));
   };
 
