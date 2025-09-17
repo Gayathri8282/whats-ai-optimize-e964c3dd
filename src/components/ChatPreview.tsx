@@ -181,12 +181,12 @@ export function ChatPreview() {
             </div>
           </div>
           <div className="flex gap-2 justify-center">
-            <Badge variant="secondary" className="bg-success/10 text-success">
-              Connected to Your Data
-            </Badge>
-            <Badge variant="secondary" className="bg-primary/10 text-primary">
-              GPT-4 Powered
-            </Badge>
+              <Badge variant="secondary" className="bg-success/10 text-success">
+                Connected to Your Data
+              </Badge>
+              <Badge variant="secondary" className="bg-primary/10 text-primary">
+                Groq Llama 3.1 Powered
+              </Badge>
           </div>
         </CardContent>
       </Card>

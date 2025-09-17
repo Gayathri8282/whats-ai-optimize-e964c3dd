@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const groqApiKey = Deno.env.get('GROQ_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -91,14 +91,14 @@ RESPONSE STYLE:
     let aiResponse = "";
     
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
+          'Authorization': `Bearer ${groqApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-70b-versatile', // Fast and capable model
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: message }
@@ -110,24 +110,91 @@ RESPONSE STYLE:
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('OpenAI API error:', errorData);
-        throw new Error(`OpenAI API error: ${response.status}`);
+        console.error('Groq API error:', errorData);
+        throw new Error(`Groq API error: ${response.status}`);
       }
 
       const data = await response.json();
       aiResponse = data.choices[0].message.content;
     } catch (error) {
-      console.error('OpenAI error, using fallback:', error.message);
+      console.error('Groq error, using fallback:', error.message);
       
       // Intelligent fallback responses based on message content and data
       if (message.toLowerCase().includes('campaign') || message.toLowerCase().includes('performance')) {
-        aiResponse = `Based on your current data: You have ${context.totalCustomers} customers with a ${context.roi?.toFixed(1)}% ROI. Your campaigns are generating $${context.totalRevenue?.toFixed(2)} in revenue. I recommend focusing on your high-value customers like ${context.topCustomers.map(c => c.name).join(', ')} for better performance.`;
+        aiResponse = `📊 **Campaign Performance Analysis**
+
+Based on your current data:
+• **${context.totalCustomers} customers** generating **$${context.totalRevenue?.toFixed(2)} revenue**
+• **ROI: ${context.roi?.toFixed(1)}%** - Excellent performance! 
+• **Average CTR: ${context.avgCTR?.toFixed(1)}%** - Strong engagement
+
+**Top Performers:**
+${context.topCustomers.map(c => `• ${c.name}: $${c.spent} (${c.campaigns} campaigns)`).join('\n')}
+
+**Recommendations:**
+1. Target similar profiles to your top customers
+2. A/B test your messaging for even better CTR
+3. Consider premium campaigns for high-value segments`;
+
       } else if (message.toLowerCase().includes('customer') || message.toLowerCase().includes('segment')) {
-        aiResponse = `Your customer insights: You have ${context.totalCustomers} total customers. Top performers are ${context.topCustomers.map(c => `${c.name} ($${c.spent})`).join(', ')}. Customer sentiment is ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative. Focus on customers spending over $1000 for premium campaigns.`;
-      } else if (message.toLowerCase().includes('roi') || message.toLowerCase().includes('revenue')) {
-        aiResponse = `Revenue Analysis: Your current ROI is ${context.roi?.toFixed(1)}%, generating $${context.totalRevenue?.toFixed(2)} in total revenue from ${context.totalCustomers} customers. With an average CTR of ${context.avgCTR?.toFixed(1)}%, you're performing well. Consider targeting high-value segments for even better results.`;
+        aiResponse = `👥 **Customer Insights & Segmentation**
+
+**Portfolio Overview:**
+• **Total Customers:** ${context.totalCustomers}
+• **Sentiment Distribution:** ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative
+
+**High-Value Customers:**
+${context.topCustomers.map(c => `• **${c.name}** - $${c.spent} spent | ${c.location} | ${c.campaigns} campaigns accepted`).join('\n')}
+
+**Segmentation Strategy:**
+1. **VIP Tier** (>$1000): Personalized premium campaigns
+2. **Active Tier** ($500-$1000): Regular engagement campaigns  
+3. **Growth Tier** (<$500): Re-engagement and upsell campaigns`;
+
+      } else if (message.toLowerCase().includes('roi') || message.toLowerCase().includes('revenue') || message.toLowerCase().includes('profit')) {
+        aiResponse = `💰 **Revenue & ROI Analysis**
+
+**Current Performance:**
+• **Total Revenue:** $${context.totalRevenue?.toFixed(2)}
+• **ROI:** ${context.roi?.toFixed(1)}% (Outstanding!)
+• **Revenue per Customer:** $${(context.totalRevenue / context.totalCustomers)?.toFixed(2)}
+
+**Revenue Drivers:**
+${context.topCustomers.map((c, i) => `${i + 1}. ${c.name}: $${c.spent} (${((c.spent / context.totalRevenue) * 100)?.toFixed(1)}% of total)`).join('\n')}
+
+**Optimization Opportunities:**
+1. Focus on customers similar to your top 20%
+2. Implement tiered pricing for premium segments
+3. Cross-sell to customers with single category purchases`;
+
+      } else if (message.toLowerCase().includes('help') || message.toLowerCase().includes('what can you do')) {
+        aiResponse = `🚀 **Advanced Marketing Assistant Capabilities**
+
+I have real-time access to your business data:
+• **${context.totalCustomers} customers** | **$${context.totalRevenue?.toFixed(2)} revenue** | **${context.roi?.toFixed(1)}% ROI**
+
+**What I Can Help With:**
+📈 **Campaign Analysis** - Performance metrics, ROI optimization
+👥 **Customer Segmentation** - VIP identification, targeting strategies  
+💰 **Revenue Insights** - Profit analysis, growth opportunities
+📱 **WhatsApp Strategy** - Message timing, content optimization
+📊 **Data Interpretation** - Trend analysis, actionable recommendations
+
+**Try asking me:**
+• "How can I increase my ROI?"
+• "Which customers should I target next?"
+• "Analyze my campaign performance"
+• "What's my best customer segment?"`;
+
       } else {
-        aiResponse = `Hello! I'm your advanced marketing assistant with access to your live data. You have ${context.totalCustomers} customers generating $${context.totalRevenue?.toFixed(2)} revenue with ${context.roi?.toFixed(1)}% ROI. I can help you with campaign analysis, customer segmentation, ROI optimization, and marketing strategies. What would you like to know?`;
+        aiResponse = `👋 Hello! I'm your **Advanced Marketing AI** with access to your live business data.
+
+**Quick Overview:**
+• **${context.totalCustomers} customers** generating **$${context.totalRevenue?.toFixed(2)} revenue**
+• **${context.roi?.toFixed(1)}% ROI** with **${context.avgCTR?.toFixed(1)}% average CTR**
+• **Customer Sentiment:** ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative
+
+I can provide detailed insights on campaigns, customer segmentation, revenue optimization, and marketing strategies. What would you like to explore?`;
       }
     }
 
