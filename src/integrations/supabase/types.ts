@@ -128,6 +128,60 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_logs: {
+        Row: {
+          campaign_name: string
+          channel: string
+          created_at: string
+          customer_id: string | null
+          delivered_at: string | null
+          delivery_id: string | null
+          error_message: string | null
+          id: string
+          message_content: string
+          recipient_email: string | null
+          recipient_phone: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          campaign_name: string
+          channel: string
+          created_at?: string
+          customer_id?: string | null
+          delivered_at?: string | null
+          delivery_id?: string | null
+          error_message?: string | null
+          id?: string
+          message_content: string
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          campaign_name?: string
+          channel?: string
+          created_at?: string
+          customer_id?: string | null
+          delivered_at?: string | null
+          delivery_id?: string | null
+          error_message?: string | null
+          id?: string
+          message_content?: string
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       campaign_metrics: {
         Row: {
           campaign_id: string | null
@@ -281,6 +335,7 @@ export type Database = {
           num_store_purchases: number | null
           num_web_purchases: number | null
           num_web_visits_month: number | null
+          opt_out: boolean | null
           phone: string
           recency: number | null
           response: boolean | null
@@ -316,6 +371,7 @@ export type Database = {
           num_store_purchases?: number | null
           num_web_purchases?: number | null
           num_web_visits_month?: number | null
+          opt_out?: boolean | null
           phone: string
           recency?: number | null
           response?: boolean | null
@@ -351,6 +407,7 @@ export type Database = {
           num_store_purchases?: number | null
           num_web_purchases?: number | null
           num_web_visits_month?: number | null
+          opt_out?: boolean | null
           phone?: string
           recency?: number | null
           response?: boolean | null
