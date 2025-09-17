@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      ab_test_results: {
+        Row: {
+          ab_test_id: string
+          assigned_at: string
+          clicked: boolean | null
+          clicked_at: string | null
+          converted: boolean | null
+          converted_at: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          message_sent: boolean | null
+          message_sent_at: string | null
+          opened: boolean | null
+          opened_at: string | null
+          replied: boolean | null
+          replied_at: string | null
+          revenue: number | null
+          updated_at: string
+          variation_id: string
+        }
+        Insert: {
+          ab_test_id: string
+          assigned_at?: string
+          clicked?: boolean | null
+          clicked_at?: string | null
+          converted?: boolean | null
+          converted_at?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          message_sent?: boolean | null
+          message_sent_at?: string | null
+          opened?: boolean | null
+          opened_at?: string | null
+          replied?: boolean | null
+          replied_at?: string | null
+          revenue?: number | null
+          updated_at?: string
+          variation_id: string
+        }
+        Update: {
+          ab_test_id?: string
+          assigned_at?: string
+          clicked?: boolean | null
+          clicked_at?: string | null
+          converted?: boolean | null
+          converted_at?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          message_sent?: boolean | null
+          message_sent_at?: string | null
+          opened?: boolean | null
+          opened_at?: string | null
+          replied?: boolean | null
+          replied_at?: string | null
+          revenue?: number | null
+          updated_at?: string
+          variation_id?: string
+        }
+        Relationships: []
+      }
       ab_test_variations: {
         Row: {
           ab_test_id: string
@@ -265,15 +328,20 @@ export type Database = {
           clicked_count: number | null
           created_at: string
           ctr: number | null
+          end_date: string | null
           id: string
           message_template: string
           name: string
           opened_count: number | null
+          roi: number | null
           schedule_type: string
           scheduled_time: string | null
           sent_count: number | null
+          start_date: string | null
           status: string
           target_audience: string
+          total_cost: number | null
+          total_revenue: number | null
           type: string
           updated_at: string
           user_id: string
@@ -284,15 +352,20 @@ export type Database = {
           clicked_count?: number | null
           created_at?: string
           ctr?: number | null
+          end_date?: string | null
           id?: string
           message_template: string
           name: string
           opened_count?: number | null
+          roi?: number | null
           schedule_type?: string
           scheduled_time?: string | null
           sent_count?: number | null
+          start_date?: string | null
           status?: string
           target_audience: string
+          total_cost?: number | null
+          total_revenue?: number | null
           type: string
           updated_at?: string
           user_id: string
@@ -303,15 +376,20 @@ export type Database = {
           clicked_count?: number | null
           created_at?: string
           ctr?: number | null
+          end_date?: string | null
           id?: string
           message_template?: string
           name?: string
           opened_count?: number | null
+          roi?: number | null
           schedule_type?: string
           scheduled_time?: string | null
           sent_count?: number | null
+          start_date?: string | null
           status?: string
           target_audience?: string
+          total_cost?: number | null
+          total_revenue?: number | null
           type?: string
           updated_at?: string
           user_id?: string

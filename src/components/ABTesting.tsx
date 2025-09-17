@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, Send, RefreshCw, Brain, Target, Play, Pause, Plus, TrendingUp, Users, BarChart3, Trophy } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Loader2, Send, RefreshCw, Brain, Target, Play, Pause, Plus, TrendingUp, Users, BarChart3, Trophy, Database } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,7 +71,22 @@ interface Customer {
   email: string;
   phone: string;
   location: string;
+  total_spent: number;
   opt_out: boolean;
+}
+
+interface ABTestResult {
+  id: string;
+  ab_test_id: string;
+  variation_id: string;
+  customer_id: string;
+  message_sent: boolean;
+  opened: boolean;
+  clicked: boolean;
+  converted: boolean;
+  replied: boolean;
+  revenue: number;
+  assigned_at: string;
 }
 
 export function ABTesting() {
@@ -83,11 +98,12 @@ export function ABTesting() {
   const [variants, setVariants] = useState<string[]>(['', '', '']);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [testName, setTestName] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
-  const [trafficSplit, setTrafficSplit] = useState(33);
+  const [trafficSplit, setTrafficSplit] = useState(50);
   const [productDetails, setProductDetails] = useState<ProductDetails>({
     name: '',
     description: '',
@@ -159,10 +175,9 @@ export function ABTesting() {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, full_name, email, phone, location, opt_out')
+        .select('id, full_name, email, phone, location, total_spent, opt_out')
         .eq('opt_out', false)
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setCustomers(data || []);
@@ -212,6 +227,49 @@ export function ABTesting() {
     } catch (error) {
       console.error('Error fetching A/B tests:', error);
       setAbTests([]);
+    }
+  };
+
+  const seedTestData = async () => {
+    setIsSeeding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('seed-test-data');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "Test data seeded successfully! Refreshing data...",
+      });
+      
+      // Reload data
+      await Promise.all([fetchCampaigns(), fetchCustomers(), fetchABTests()]);
+    } catch (error: any) {
+      console.error('Error seeding test data:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to seed test data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const getEligibleCustomers = (audience: string) => {
+    const eligibleCustomers = customers.filter(c => !c.opt_out);
+    
+    switch (audience) {
+      case 'Premium Customers':
+        return eligibleCustomers.filter(c => c.total_spent > 1000);
+      case 'New Customers':
+        return eligibleCustomers.filter(c => c.total_spent < 200);
+      case 'Loyal Customers':
+        return eligibleCustomers.filter(c => c.total_spent > 500);
+      case 'At-Risk Customers':
+        return eligibleCustomers.filter(c => c.total_spent < 100);
+      default:
+        return eligibleCustomers;
     }
   };
 
@@ -288,6 +346,17 @@ export function ABTesting() {
       return;
     }
 
+    const eligibleCustomers = getEligibleCustomers(targetAudience || selectedCampaign.target_audience);
+    
+    if (eligibleCustomers.length === 0) {
+      toast({
+        title: "No Eligible Customers",
+        description: "No customers found for the selected audience. Try seeding test data first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCreating(true);
     try {
       // Save product details first
@@ -315,7 +384,7 @@ export function ABTesting() {
           status: 'draft',
           traffic_split: trafficSplit,
           target_audience: targetAudience || selectedCampaign.target_audience,
-          customer_count: customers.length,
+          customer_count: eligibleCustomers.length,
           confidence_level: 0,
           product_details_id: productDetailsId
         })
@@ -332,7 +401,7 @@ export function ABTesting() {
             ab_test_id: testData.id,
             variation_name: String.fromCharCode(65 + index),
             message_template: variant,
-            audience_count: Math.floor(customers.length / variants.length),
+            audience_count: Math.floor(eligibleCustomers.length / variants.length),
             traffic_allocation: Math.floor(100 / variants.length),
             sent_count: 0,
             opened_count: 0,
@@ -350,7 +419,7 @@ export function ABTesting() {
 
       toast({
         title: "A/B Test Created",
-        description: `Successfully created "${testName}" with ${variants.length} variations.`,
+        description: `Successfully created "${testName}" with ${variants.length} variations for ${eligibleCustomers.length} customers.`,
       });
 
       // Reset form and refresh data
@@ -389,7 +458,7 @@ export function ABTesting() {
 
       toast({
         title: "A/B Test Started",
-        description: "The test is now running and collecting data.",
+        description: "The test is now running and collecting real data from customer interactions.",
       });
 
       await fetchABTests();
@@ -450,14 +519,13 @@ export function ABTesting() {
   const calculatePerformanceData = () => {
     if (!selectedTest?.variations) return [];
     
-    return Array.from({ length: 7 }, (_, index) => ({
-      day: `Day ${index + 1}`,
-      ...selectedTest.variations.reduce((acc, variation, varIndex) => {
-        const basePerformance = variation.ctr;
-        const dailyVariation = Math.random() * 2 - 1; // -1 to 1
-        acc[`variant${variation.variation_name}`] = Math.max(0, basePerformance + dailyVariation);
-        return acc;
-      }, {} as Record<string, number>)
+    return selectedTest.variations.map(variation => ({
+      name: `Variant ${variation.variation_name}`,
+      CTR: variation.ctr,
+      Conversions: variation.conversion_count,
+      Revenue: variation.conversion_count * 150, // Estimated revenue
+      Opens: variation.opened_count,
+      Clicks: variation.clicked_count
     }));
   };
 
@@ -482,438 +550,465 @@ export function ABTesting() {
           <Brain className="w-8 h-8 text-primary" />
           <div>
             <h1 className="text-3xl font-bold">AI-Powered A/B Testing</h1>
-            <p className="text-muted-foreground">Smart campaign optimization with real-time analytics</p>
+            <p className="text-muted-foreground">Smart campaign optimization with real customer data</p>
           </div>
         </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Create A/B Test
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create New A/B Test</DialogTitle>
-              <DialogDescription>
-                Set up a new A/B test with AI-generated variants
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-6">
-              {/* Test Configuration */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="testName">Test Name</Label>
-                  <Input
-                    id="testName"
-                    value={testName}
-                    onChange={(e) => setTestName(e.target.value)}
-                    placeholder="e.g., Summer Sale Message Variants"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="campaign">Campaign</Label>
-                  <Select onValueChange={(value) => {
-                    const campaign = campaigns.find(c => c.id === value);
-                    setSelectedCampaign(campaign || null);
-                    setTargetAudience(campaign?.target_audience || '');
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a campaign" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {campaigns.map((campaign) => (
-                        <SelectItem key={campaign.id} value={campaign.id}>
-                          {campaign.name} ({campaign.type})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="audience">Target Audience</Label>
-                  <Input
-                    id="audience"
-                    value={targetAudience}
-                    onChange={(e) => setTargetAudience(e.target.value)}
-                    placeholder="e.g., young adults, tech enthusiasts"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="split">Traffic Split (%)</Label>
-                  <Input
-                    id="split"
-                    type="number"
-                    value={trafficSplit}
-                    onChange={(e) => setTrafficSplit(Number(e.target.value))}
-                    min="10"
-                    max="50"
-                  />
-                </div>
-              </div>
-
-              {/* Product Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Product Details (Optional)</CardTitle>
-                  <CardDescription>Provide product information for better AI variants</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="productName">Product Name</Label>
-                      <Input
-                        id="productName"
-                        value={productDetails.name}
-                        onChange={(e) => setProductDetails(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="e.g., Premium Wireless Headphones"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="productPrice">Price/Offer</Label>
-                      <Input
-                        id="productPrice"
-                        value={productDetails.price}
-                        onChange={(e) => setProductDetails(prev => ({ ...prev, price: e.target.value }))}
-                        placeholder="e.g., $99, 20% off"
-                      />
-                    </div>
-                  </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={seedTestData}
+            disabled={isSeeding}
+          >
+            <Database className="w-4 h-4 mr-2" />
+            {isSeeding ? 'Seeding...' : 'Seed Test Data'}
+          </Button>
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Create A/B Test
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create New A/B Test</DialogTitle>
+                <DialogDescription>
+                  Set up a new A/B test with AI-generated variants using real customer data
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="grid grid-cols-2 gap-6">
+                {/* Test Configuration */}
+                <div className="space-y-4">
                   <div>
-                    <Label htmlFor="productDesc">Description</Label>
-                    <Textarea
-                      id="productDesc"
-                      value={productDetails.description}
-                      onChange={(e) => setProductDetails(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Brief product description..."
+                    <Label>Test Name</Label>
+                    <Input
+                      value={testName}
+                      onChange={(e) => setTestName(e.target.value)}
+                      placeholder="Enter test name"
                     />
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Generate Variants */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Message Variants</Label>
-                  <Button 
-                    onClick={generateVariants}
-                    disabled={!selectedCampaign || isGenerating}
-                    variant="outline"
-                    size="sm"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-4 h-4 mr-2" />
-                        Generate AI Variants
-                      </>
+                  
+                  <div>
+                    <Label>Select Campaign</Label>
+                    <Select onValueChange={(value) => {
+                      const campaign = campaigns.find(c => c.id === value);
+                      setSelectedCampaign(campaign || null);
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a campaign" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {campaigns.map(campaign => (
+                          <SelectItem key={campaign.id} value={campaign.id}>
+                            {campaign.name} ({campaign.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {campaigns.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        No campaigns found. Create a campaign first or seed test data.
+                      </p>
                     )}
-                  </Button>
+                  </div>
+
+                  <div>
+                    <Label>Target Audience</Label>
+                    <Select value={targetAudience} onValueChange={setTargetAudience}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select audience" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Customers ({customers.length})</SelectItem>
+                        <SelectItem value="Premium Customers">Premium Customers ({customers.filter(c => c.total_spent > 1000).length})</SelectItem>
+                        <SelectItem value="New Customers">New Customers ({customers.filter(c => c.total_spent < 200).length})</SelectItem>
+                        <SelectItem value="Loyal Customers">Loyal Customers ({customers.filter(c => c.total_spent > 500).length})</SelectItem>
+                        <SelectItem value="At-Risk Customers">At-Risk Customers ({customers.filter(c => c.total_spent < 100).length})</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Traffic Split (%)</Label>
+                    <Input
+                      type="number"
+                      value={trafficSplit}
+                      onChange={(e) => setTrafficSplit(Number(e.target.value))}
+                      min="10"
+                      max="90"
+                    />
+                  </div>
                 </div>
-                
-                <div className="grid grid-cols-1 gap-4">
-                  {variants.map((variant, index) => (
-                    <div key={index}>
-                      <Label htmlFor={`variant-${index}`}>
-                        Variant {String.fromCharCode(65 + index)}
-                      </Label>
-                      <Textarea
-                        id={`variant-${index}`}
-                        value={variant}
-                        onChange={(e) => {
-                          const newVariants = [...variants];
-                          newVariants[index] = e.target.value;
-                          setVariants(newVariants);
-                        }}
-                        placeholder={`Enter message for variant ${String.fromCharCode(65 + index)}...`}
-                        className="min-h-[100px]"
+
+                {/* Product Details */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Product Details (for AI generation)</h3>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Product Name</Label>
+                      <Input
+                        value={productDetails.name}
+                        onChange={(e) => setProductDetails(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Product name"
                       />
                     </div>
-                  ))}
+                    <div>
+                      <Label>Price</Label>
+                      <Input
+                        value={productDetails.price}
+                        onChange={(e) => setProductDetails(prev => ({ ...prev, price: e.target.value }))}
+                        placeholder="$99.99"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea
+                      value={productDetails.description}
+                      onChange={(e) => setProductDetails(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Product description"
+                      rows={2}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label>Key Features</Label>
+                    <Input
+                      value={productDetails.features}
+                      onChange={(e) => setProductDetails(prev => ({ ...prev, features: e.target.value }))}
+                      placeholder="Feature 1, Feature 2, Feature 3"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label>Special Offer</Label>
+                    <Input
+                      value={productDetails.offer}
+                      onChange={(e) => setProductDetails(prev => ({ ...prev, offer: e.target.value }))}
+                      placeholder="20% off limited time"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={createABTest} disabled={isCreating}>
-                {isCreating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create A/B Test'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              {/* AI Generation Section */}
+              {selectedCampaign && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">AI-Generated Variants</h3>
+                    <Button
+                      onClick={generateVariants}
+                      disabled={isGenerating}
+                      variant="outline"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-4 h-4 mr-2" />
+                          Generate Variants
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    {variants.map((variant, index) => (
+                      <div key={index}>
+                        <Label>Variant {String.fromCharCode(65 + index)}</Label>
+                        <Textarea
+                          value={variant}
+                          onChange={(e) => {
+                            const newVariants = [...variants];
+                            newVariants[index] = e.target.value;
+                            setVariants(newVariants);
+                          }}
+                          placeholder={`Variant ${String.fromCharCode(65 + index)} message`}
+                          rows={2}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={createABTest} 
+                  disabled={isCreating || !selectedCampaign || !testName}
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create A/B Test'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Active Tests</p>
-                <p className="text-2xl font-bold">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Tests</p>
+                <p className="text-2xl font-bold">{abTests.length}</p>
+              </div>
+              <Target className="w-8 h-8 text-primary" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Running Tests</p>
+                <p className="text-2xl font-bold text-green-600">
                   {abTests.filter(t => t.status === 'running').length}
                 </p>
               </div>
-              <BarChart3 className="ml-auto h-4 w-4 text-muted-foreground" />
+              <Play className="w-8 h-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
+        
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Total Audience</p>
-                <p className="text-2xl font-bold">{customers.length.toLocaleString()}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Customers</p>
+                <p className="text-2xl font-bold">{customers.length}</p>
               </div>
-              <Users className="ml-auto h-4 w-4 text-muted-foreground" />
+              <Users className="w-8 h-8 text-primary" />
             </div>
           </CardContent>
         </Card>
+        
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Avg Performance</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Avg CTR</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {selectedTest?.variations ? 
-                    `${(selectedTest.variations.reduce((sum, v) => sum + v.ctr, 0) / selectedTest.variations.length).toFixed(1)}%` 
-                    : '0%'
-                  }
+                  {abTests.length > 0 && abTests.some(t => t.variations && t.variations.length > 0)
+                    ? abTests
+                        .filter(t => t.variations && t.variations.length > 0)
+                        .reduce((sum, test) => {
+                          const avgCtr = test.variations!.reduce((s, v) => s + v.ctr, 0) / test.variations!.length;
+                          return sum + avgCtr;
+                        }, 0) / abTests.filter(t => t.variations && t.variations.length > 0).length
+                      : 0}%
                 </p>
               </div>
-              <TrendingUp className="ml-auto h-4 w-4 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Confidence</p>
-                <p className="text-2xl font-bold">{selectedTest?.confidence_level || 0}%</p>
-              </div>
-              <Target className="ml-auto h-4 w-4 text-muted-foreground" />
+              <TrendingUp className="w-8 h-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* A/B Tests List and Results */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* A/B Tests List */}
-        <Card>
+        {/* Tests List */}
+        <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="w-5 h-5" />
-              A/B Tests
-            </CardTitle>
+            <CardTitle>A/B Tests</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {abTests.map((test) => (
-              <div 
-                key={test.id}
-                className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                  selectedTest?.id === test.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
-                }`}
-                onClick={() => setSelectedTest(test)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">{test.name}</h3>
-                  <Badge className={getStatusColor(test.status)}>
-                    {test.status}
-                  </Badge>
-                </div>
-                <div className="text-sm text-muted-foreground mb-2">
-                  <p>Campaign: {test.campaign?.name || 'Unknown Campaign'}</p>
-                  <p>Audience: {test.customer_count?.toLocaleString() || 0}</p>
-                </div>
-                {test.variations && test.variations.length > 0 && (
-                  <div className="text-xs">
-                    <div className="flex justify-between">
-                      <span>Best: {getBestVariation(test.variations)?.variation_name}</span>
-                      <span>{getBestVariation(test.variations)?.ctr.toFixed(1)}%</span>
-                    </div>
-                  </div>
+          <CardContent className="space-y-3">
+            {abTests.length === 0 ? (
+              <div className="text-center py-8">
+                <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No A/B tests yet</h3>
+                <p className="text-muted-foreground mb-4">Create your first A/B test to get started</p>
+                {customers.length === 0 && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    💡 Tip: Click "Seed Test Data" to add sample data
+                  </p>
                 )}
-                <div className="flex gap-2 mt-2">
-                  {test.status === 'draft' && (
-                    <Button size="sm" onClick={(e) => {
-                      e.stopPropagation();
-                      startABTest(test.id);
-                    }}>
-                      <Play className="w-3 h-3 mr-1" />
-                      Start
-                    </Button>
-                  )}
-                  {test.status === 'running' && (
-                    <Button size="sm" variant="outline" onClick={(e) => {
-                      e.stopPropagation();
-                      stopABTest(test.id);
-                    }}>
-                      <Pause className="w-3 h-3 mr-1" />
-                      Stop
-                    </Button>
-                  )}
-                </div>
               </div>
-            ))}
-            {abTests.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <Brain className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No A/B tests created yet</p>
-                <p className="text-sm">Create your first test to get started</p>
-              </div>
+            ) : (
+              abTests.map((test) => (
+                <Card 
+                  key={test.id} 
+                  className={`cursor-pointer transition-colors ${
+                    selectedTest?.id === test.id ? 'ring-2 ring-primary' : 'hover:bg-muted/50'
+                  }`}
+                  onClick={() => setSelectedTest(test)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-sm">{test.name}</h4>
+                      <Badge className={getStatusColor(test.status)}>
+                        {test.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {test.campaign?.name || 'Unknown Campaign'}
+                    </p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span>{test.customer_count} customers</span>
+                      {test.confidence_level > 0 && (
+                        <span className="text-green-600">
+                          {test.confidence_level}% confidence
+                        </span>
+                      )}
+                    </div>
+                    {test.status === 'draft' && (
+                      <Button 
+                        size="sm" 
+                        className="w-full mt-2" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startABTest(test.id);
+                        }}
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        Start Test
+                      </Button>
+                    )}
+                    {test.status === 'running' && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="w-full mt-2" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          stopABTest(test.id);
+                        }}
+                      >
+                        <Pause className="w-3 h-3 mr-1" />
+                        Stop Test
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
             )}
           </CardContent>
         </Card>
 
-        {/* Test Details */}
+        {/* Test Results */}
         <div className="lg:col-span-2 space-y-6">
           {selectedTest ? (
             <>
+              {/* Test Overview */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Target className="w-5 h-5" />
-                        {selectedTest.name}
-                      </CardTitle>
+                      <CardTitle>{selectedTest.name}</CardTitle>
                       <CardDescription>
-                        Campaign: {selectedTest.campaign?.name || 'Unknown Campaign'} • 
-                        Audience: {selectedTest.customer_count?.toLocaleString() || 0}
+                        Campaign: {selectedTest.campaign?.name} | 
+                        Audience: {selectedTest.target_audience} | 
+                        Status: {selectedTest.status}
                       </CardDescription>
                     </div>
-                    <Badge className={getStatusColor(selectedTest.status)}>
-                      {selectedTest.status}
-                    </Badge>
+                    {selectedTest.winner_variation && (
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-yellow-500" />
+                        <span className="font-semibold">
+                          Winner: Variant {selectedTest.winner_variation}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {selectedTest.variations && selectedTest.variations.length > 0 ? (
+                  {selectedTest.variations && selectedTest.variations.length > 0 && (
                     <div className="space-y-4">
-                      <h4 className="font-semibold">Variant Performance</h4>
-                      {selectedTest.variations.map((variation) => (
-                        <div key={variation.id} className="p-4 bg-muted/30 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">
-                                Variant {variation.variation_name}
-                              </Badge>
-                              {variation.is_winner && (
-                                <Badge className="bg-yellow-100 text-yellow-800">
-                                  <Trophy className="w-3 h-3 mr-1" />
-                                  Winner
+                      {/* Performance Chart */}
+                      <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={calculatePerformanceData()}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis />
+                            <Tooltip />
+                            <Bar dataKey="CTR" fill="#8884d8" name="CTR %" />
+                            <Bar dataKey="Conversions" fill="#82ca9d" name="Conversions" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Variations Performance */}
+                      <div className="grid grid-cols-1 gap-4">
+                        {selectedTest.variations.map((variation) => (
+                          <Card key={variation.id} className={variation.is_winner ? 'ring-2 ring-yellow-400' : ''}>
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-semibold">Variant {variation.variation_name}</h4>
+                                  {variation.is_winner && (
+                                    <Trophy className="w-4 h-4 text-yellow-500" />
+                                  )}
+                                </div>
+                                <Badge variant="outline">
+                                  CTR: {variation.ctr.toFixed(2)}%
                                 </Badge>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <div className="font-semibold">{variation.ctr.toFixed(1)}%</div>
-                              <div className="text-sm text-muted-foreground">CTR</div>
-                            </div>
-                          </div>
-                          
-                          <div className="mb-3">
-                            <div className="text-sm font-medium mb-1">Message:</div>
-                            <div className="text-sm bg-background p-2 rounded border">
-                              {variation.message_template}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-4 gap-4 text-sm">
-                            <div className="text-center">
-                              <div className="font-medium">{variation.sent_count}</div>
-                              <div className="text-muted-foreground">Sent</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-medium">{variation.opened_count}</div>
-                              <div className="text-muted-foreground">Opened</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-medium">{variation.clicked_count}</div>
-                              <div className="text-muted-foreground">Clicked</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-medium">{variation.conversion_count}</div>
-                              <div className="text-muted-foreground">Converted</div>
-                            </div>
-                          </div>
-
-                          <div className="mt-3">
-                            <div className="flex justify-between text-sm mb-1">
-                              <span>Performance</span>
-                              <span>{variation.ctr.toFixed(1)}%</span>
-                            </div>
-                            <Progress value={variation.ctr} className="h-2" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>No variations found</p>
-                      <p className="text-sm">This test hasn't been configured with variations yet</p>
+                              </div>
+                              
+                              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                {variation.message_template}
+                              </p>
+                              
+                              <div className="grid grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <p className="text-muted-foreground">Sent</p>
+                                  <p className="font-semibold">{variation.sent_count}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Opened</p>
+                                  <p className="font-semibold">{variation.opened_count}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Clicked</p>
+                                  <p className="font-semibold">{variation.clicked_count}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Converted</p>
+                                  <p className="font-semibold">{variation.conversion_count}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="mt-3">
+                                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                                  <span>Click-through Rate</span>
+                                  <span>{variation.ctr.toFixed(2)}%</span>
+                                </div>
+                                <Progress value={variation.ctr} className="h-2" />
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
-
-              {/* Performance Chart */}
-              {selectedTest.variations && selectedTest.variations.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Over Time</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={calculatePerformanceData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="day" />
-                          <YAxis />
-                          <Tooltip />
-                          {selectedTest.variations.map((variation, index) => (
-                            <Line 
-                              key={variation.id}
-                              type="monotone" 
-                              dataKey={`variant${variation.variation_name}`}
-                              stroke={`hsl(${index * 60}, 70%, 50%)`}
-                              strokeWidth={2}
-                              name={`Variant ${variation.variation_name}`}
-                            />
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </>
           ) : (
             <Card>
               <CardContent className="p-12 text-center">
-                <Brain className="w-16 h-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">Select an A/B Test</h3>
+                <Target className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Select an A/B Test</h3>
                 <p className="text-muted-foreground">
-                  Choose a test from the list to view its details and performance metrics
+                  Choose a test from the list to view detailed results and performance metrics
                 </p>
               </CardContent>
             </Card>

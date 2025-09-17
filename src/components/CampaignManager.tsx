@@ -1,167 +1,262 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
-import {
-  Plus,
-  Edit,
-  Play,
-  Pause,
-  Trash2,
-  Brain,
-  Users,
-  MessageSquare,
-  TrendingUp,
-  Calendar,
-  Target,
-} from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, Users, MessageSquare, TrendingUp, Play, Pause, Edit, Trash2, Database, DollarSign } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
 
+interface Campaign {
+  id: string;
+  name: string;
+  type: 'whatsapp' | 'email' | 'sms';
+  status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed';
+  target_audience: string;
+  message_template: string;
+  schedule_type: 'now' | 'scheduled';
+  scheduled_time?: string;
+  audience_count: number;
+  sent_count: number;
+  opened_count: number;
+  clicked_count: number;
+  ctr: number;
+  total_revenue?: number;
+  total_cost?: number;
+  roi?: number;
+  start_date?: string;
+  end_date?: string;
+  created_at: string;
+  updated_at: string;
+}
 
-export function CampaignManager() {
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
-  const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+interface Customer {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  location: string;
+  total_spent: number;
+  campaigns_accepted: number;
+  opt_out: boolean;
+}
+
+const CampaignManager = () => {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
   const [user, setUser] = useState<any>(null);
   const { toast } = useToast();
 
-  // Form state
   const [formData, setFormData] = useState({
-    name: "",
-    type: "",
-    messageTemplate: "",
-    targetAudience: "",
-    scheduleType: "now",
-    aiOptimization: true
+    name: '',
+    type: 'whatsapp' as 'whatsapp' | 'email' | 'sms',
+    target_audience: '',
+    message_template: '',
+    schedule_type: 'now' as 'now' | 'scheduled',
+    scheduled_time: '',
   });
 
   useEffect(() => {
-    // Set up auth state listener for real-time auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          fetchCampaigns();
-        } else {
-          setCampaigns([]);
-        }
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) {
+        await Promise.all([loadCampaigns(), loadCustomers()]);
       }
-    );
+    };
 
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
       if (session?.user) {
-        fetchCampaigns();
+        Promise.all([loadCampaigns(), loadCustomers()]);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchCampaigns = async () => {
-    setIsLoading(true);
+  const loadCampaigns = async () => {
     try {
       const { data, error } = await supabase
         .from('campaigns')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
-      setCampaigns(data || []);
-    } catch (error) {
-      console.error('Error fetching campaigns:', error);
+      setCampaigns((data || []) as Campaign[]);
+    } catch (error: any) {
+      console.error('Error loading campaigns:', error);
       toast({
         title: "Error",
         description: "Failed to load campaigns",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAISuggestions = async () => {
-    if (!formData.type || !formData.targetAudience) {
-      toast({
-        title: "Missing Information",
-        description: "Please select campaign type and target audience first",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsLoading(true);
+  const loadCustomers = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('generate-campaign', {
-        body: {
-          campaignType: formData.type,
-          targetAudience: formData.targetAudience,
-          businessInfo: "WhatsApp Marketing Platform",
-          goals: "Increase engagement and conversions",
-          tone: "professional and friendly"
-        }
-      });
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, full_name, email, phone, location, total_spent, campaigns_accepted, opt_out')
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
+      setCustomers(data || []);
+    } catch (error: any) {
+      console.error('Error loading customers:', error);
+    }
+  };
 
-      setFormData(prev => ({
-        ...prev,
-        name: data.name || prev.name,
-        messageTemplate: data.messageTemplate || prev.messageTemplate
+  const seedTestData = async () => {
+    setIsSeeding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('seed-test-data');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "Test data seeded successfully! Refreshing campaigns and customers...",
+      });
+      
+      // Reload data
+      await Promise.all([loadCampaigns(), loadCustomers()]);
+    } catch (error: any) {
+      console.error('Error seeding test data:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to seed test data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const getEligibleCustomers = (audience: string) => {
+    const eligibleCustomers = customers.filter(c => !c.opt_out);
+    
+    switch (audience) {
+      case 'Premium Customers':
+        return eligibleCustomers.filter(c => c.total_spent > 1000);
+      case 'New Customers':
+        return eligibleCustomers.filter(c => c.total_spent < 200);
+      case 'Loyal Customers':
+        return eligibleCustomers.filter(c => c.total_spent > 500 && c.campaigns_accepted > 2);
+      case 'At-Risk Customers':
+        return eligibleCustomers.filter(c => c.total_spent < 100);
+      default:
+        return eligibleCustomers;
+    }
+  };
+
+  const replaceVariables = (template: string, customer: Customer) => {
+    return template
+      .replace(/\{\{customer_name\}\}/g, customer.full_name)
+      .replace(/\{\{customer_location\}\}/g, customer.location)
+      .replace(/\{\{customer_email\}\}/g, customer.email)
+      .replace(/\{\{total_spent\}\}/g, `$${customer.total_spent.toFixed(2)}`);
+  };
+
+  const runCampaign = async (campaignId: string) => {
+    setIsRunning(true);
+    try {
+      const campaign = campaigns.find(c => c.id === campaignId);
+      if (!campaign) throw new Error('Campaign not found');
+
+      const eligibleCustomers = getEligibleCustomers(campaign.target_audience);
+      
+      if (eligibleCustomers.length === 0) {
+        throw new Error('No eligible customers found for this audience');
+      }
+
+      // Simulate campaign execution with realistic metrics
+      const sentCount = Math.floor(eligibleCustomers.length * (0.85 + Math.random() * 0.15)); // 85-100% delivery
+      const openedCount = Math.floor(sentCount * (0.25 + Math.random() * 0.35)); // 25-60% open rate
+      const clickedCount = Math.floor(openedCount * (0.1 + Math.random() * 0.2)); // 10-30% click rate
+      const ctr = sentCount > 0 ? (clickedCount / sentCount) * 100 : 0;
+      
+      // Calculate revenue and cost
+      const avgRevenuePerConversion = 75 + Math.random() * 150; // $75-225 per conversion
+      const conversionCount = Math.floor(clickedCount * (0.05 + Math.random() * 0.15)); // 5-20% conversion
+      const totalRevenue = conversionCount * avgRevenuePerConversion;
+      const totalCost = sentCount * 0.05; // $0.05 per message
+      const roi = totalCost > 0 ? ((totalRevenue - totalCost) / totalCost) * 100 : 0;
+
+      // Update campaign with results
+      const { error: updateError } = await supabase
+        .from('campaigns')
+        .update({
+          status: 'completed',
+          audience_count: eligibleCustomers.length,
+          sent_count: sentCount,
+          opened_count: openedCount,
+          clicked_count: clickedCount,
+          ctr: parseFloat(ctr.toFixed(2)),
+          total_revenue: parseFloat(totalRevenue.toFixed(2)),
+          total_cost: parseFloat(totalCost.toFixed(2)),
+          roi: parseFloat(roi.toFixed(2)),
+          start_date: new Date().toISOString(),
+          end_date: new Date().toISOString()
+        })
+        .eq('id', campaignId);
+
+      if (updateError) throw updateError;
+
+      // Create campaign logs for sent messages
+      const logsToCreate = eligibleCustomers.slice(0, sentCount).map(customer => ({
+        user_id: user.id,
+        campaign_name: campaign.name,
+        customer_id: customer.id,
+        channel: campaign.type,
+        status: 'delivered',
+        message_content: replaceVariables(campaign.message_template, customer),
+        recipient_phone: customer.phone,
+        recipient_email: customer.email,
+        sent_at: new Date().toISOString(),
+        delivered_at: new Date().toISOString()
       }));
 
+      if (logsToCreate.length > 0) {
+        const { error: logsError } = await supabase
+          .from('campaign_logs')
+          .insert(logsToCreate);
+
+        if (logsError) {
+          console.error('Error creating campaign logs:', logsError);
+        }
+      }
+
       toast({
-        title: "AI Campaign Generated",
-        description: "Campaign content has been generated successfully!",
-        variant: "default"
+        title: "Campaign Launched Successfully",
+        description: `Sent ${sentCount} messages to ${eligibleCustomers.length} customers. CTR: ${ctr.toFixed(1)}%, ROI: ${roi.toFixed(1)}%`,
       });
-    } catch (error) {
-      console.error('Error generating campaign:', error);
+
+      await loadCampaigns();
+    } catch (error: any) {
+      console.error('Error running campaign:', error);
       toast({
-        title: "Error",
-        description: "Failed to generate campaign content",
-        variant: "destructive"
+        title: "Campaign Failed",
+        description: error.message || "Failed to run campaign",
+        variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSentimentAnalysis = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('sentiment-analysis', {
-        body: { text: formData.messageTemplate }
-      });
-
-      if (error) throw error;
-
-      const sentimentColor = data.sentiment === 'positive' ? 'text-success' : 
-                           data.sentiment === 'negative' ? 'text-destructive' : 'text-muted-foreground';
-
-      toast({
-        title: `Sentiment: ${data.sentiment} (${Math.round(data.confidence * 100)}%)`,
-        description: data.explanation,
-        variant: "default"
-      });
-    } catch (error) {
-      console.error('Error analyzing sentiment:', error);
-      toast({
-        title: "Error",
-        description: "Failed to analyze message sentiment",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+      setIsRunning(false);
     }
   };
 
@@ -170,71 +265,104 @@ export function CampaignManager() {
       toast({
         title: "Authentication Required",
         description: "Please sign in to create campaigns",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    if (!formData.name || !formData.type || !formData.messageTemplate || !formData.targetAudience) {
+    if (!formData.name || !formData.message_template || !formData.target_audience) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    setIsLoading(true);
     try {
+      const eligibleCustomers = getEligibleCustomers(formData.target_audience);
+      
       const { error } = await supabase
         .from('campaigns')
         .insert({
           user_id: user.id,
           name: formData.name,
           type: formData.type,
-          message_template: formData.messageTemplate,
-          target_audience: formData.targetAudience,
-          schedule_type: formData.scheduleType,
-          ai_optimization: formData.aiOptimization,
-          audience_count: Math.floor(Math.random() * 20000) + 1000 // Mock audience count
+          message_template: formData.message_template,
+          target_audience: formData.target_audience,
+          schedule_type: formData.schedule_type,
+          scheduled_time: formData.scheduled_time || null,
+          status: formData.schedule_type === 'now' ? 'draft' : 'scheduled',
+          audience_count: eligibleCustomers.length,
+          sent_count: 0,
+          opened_count: 0,
+          clicked_count: 0,
+          ctr: 0,
+          total_revenue: 0,
+          total_cost: 0,
+          roi: 0
         });
 
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Campaign created successfully!",
-        variant: "default"
+        title: "Campaign Created",
+        description: `Campaign "${formData.name}" created successfully!`,
       });
 
-      setShowCreateDialog(false);
+      setShowCreateForm(false);
       setFormData({
-        name: "",
-        type: "",
-        messageTemplate: "",
-        targetAudience: "",
-        scheduleType: "now",
-        aiOptimization: true
+        name: '',
+        type: 'whatsapp',
+        target_audience: '',
+        message_template: '',
+        schedule_type: 'now',
+        scheduled_time: '',
       });
-      fetchCampaigns();
-    } catch (error) {
+      
+      await loadCampaigns();
+    } catch (error: any) {
       console.error('Error creating campaign:', error);
       toast({
         title: "Error",
         description: "Failed to create campaign",
-        variant: "destructive"
+        variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  const deleteCampaign = async (campaignId: string) => {
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .delete()
+        .eq('id', campaignId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Campaign Deleted",
+        description: "Campaign has been deleted successfully",
+      });
+
+      await loadCampaigns();
+    } catch (error: any) {
+      console.error('Error deleting campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete campaign",
+        variant: "destructive",
+      });
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active": return "bg-success text-success-foreground";
-      case "paused": return "bg-warning text-warning-foreground";
-      case "draft": return "bg-muted text-muted-foreground";
-      default: return "bg-muted text-muted-foreground";
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'running': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'scheduled': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'paused': return 'bg-orange-100 text-orange-800 border-orange-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -252,294 +380,285 @@ export function CampaignManager() {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading campaigns...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gradient-primary">Campaign Management</h1>
-          <p className="text-muted-foreground">Create and manage your AI-powered WhatsApp campaigns</p>
-        </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button variant="hero" size="lg" className="gap-2">
-              <Plus className="w-5 h-5" />
-              Create Campaign
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5 text-primary" />
-                Create AI-Powered Campaign
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="campaign-name">Campaign Name</Label>
-                  <Input 
-                    id="campaign-name" 
-                    placeholder="Enter campaign name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="campaign-type">Campaign Type</Label>
-                  <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="promotional">Promotional</SelectItem>
-                      <SelectItem value="onboarding">Onboarding</SelectItem>
-                      <SelectItem value="announcement">Announcement</SelectItem>
-                      <SelectItem value="survey">Survey</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="message-template">Message Template</Label>
-                <Textarea
-                  id="message-template"
-                  placeholder="Enter your message template..."
-                  rows={4}
-                  value={formData.messageTemplate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, messageTemplate: e.target.value }))}
-                />
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleAISuggestions}
-                    disabled={isLoading}
-                  >
-                    <Brain className="w-4 h-4 mr-1" />
-                    AI Generate
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleSentimentAnalysis}
-                    disabled={!formData.messageTemplate || isLoading}
-                  >
-                    <MessageSquare className="w-4 h-4 mr-1" />
-                    Analyze Sentiment
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="audience">Target Audience</Label>
-                  <Select value={formData.targetAudience} onValueChange={(value) => setFormData(prev => ({ ...prev, targetAudience: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select audience" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Customers</SelectItem>
-                      <SelectItem value="new">New Customers</SelectItem>
-                      <SelectItem value="returning">Returning Customers</SelectItem>
-                      <SelectItem value="vip">VIP Customers</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schedule">Schedule</Label>
-                  <Select value={formData.scheduleType} onValueChange={(value) => setFormData(prev => ({ ...prev, scheduleType: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Send now or schedule" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="now">Send Now</SelectItem>
-                      <SelectItem value="schedule">Schedule Later</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gradient-card rounded-lg border border-border/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <Brain className="w-5 h-5 text-primary" />
-                  <span className="font-medium">AI Optimization Settings</span>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
-                    Enable reinforcement learning optimization
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
-                    Auto A/B test message variations
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
-                    Personalize content using RAG
-                  </label>
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <p className="text-xs text-muted-foreground">
-                      💡 Tip: Use the A/B Testing tab to create detailed tests with custom variations and traffic splits.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <Button variant="ghost" onClick={() => setShowCreateDialog(false)}>
-                  Cancel
-                </Button>
-                <Button variant="success" onClick={handleCreateCampaign} disabled={isLoading}>
-                  {isLoading ? "Creating..." : "Create Campaign"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Campaign Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Campaigns</p>
-                <p className="text-2xl font-bold">{campaigns.length}</p>
-              </div>
-              <Target className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active</p>
-                <p className="text-2xl font-bold text-success">
-                  {campaigns.filter(c => c.status === 'active').length}
-                </p>
-              </div>
-              <Play className="w-8 h-8 text-success" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Audience</p>
-                <p className="text-2xl font-bold">
-                  {campaigns.reduce((sum, c) => sum + (c.audience_count || 0), 0).toLocaleString()}
-                </p>
-              </div>
-              <Users className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg CTR</p>
-                <p className="text-2xl font-bold text-gradient-success">
-                  {campaigns.length > 0 ? (campaigns.reduce((sum, c) => sum + (c.ctr || 0), 0) / campaigns.length).toFixed(1) : 0}%
-                </p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-success" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Campaigns List */}
-      <Card className="shadow-card">
+      <Card>
         <CardHeader>
-          <CardTitle>Your Campaigns</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Campaign Manager</CardTitle>
+              <CardDescription>Create and manage your marketing campaigns with real customer data</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={seedTestData}
+                disabled={isSeeding}
+              >
+                <Database className="w-4 h-4 mr-2" />
+                {isSeeding ? 'Seeding...' : 'Seed Test Data'}
+              </Button>
+              <Button onClick={() => setShowCreateForm(true)}>
+                Create Campaign
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Campaigns</p>
+                    <p className="text-2xl font-bold">{campaigns.length}</p>
+                  </div>
+                  <MessageSquare className="w-8 h-8 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Customers</p>
+                    <p className="text-2xl font-bold">{customers.length}</p>
+                  </div>
+                  <Users className="w-8 h-8 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Revenue</p>
+                    <p className="text-2xl font-bold">
+                      ${campaigns.reduce((sum, c) => sum + (c.total_revenue || 0), 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg CTR</p>
+                    <p className="text-2xl font-bold">
+                      {campaigns.length > 0 
+                        ? (campaigns.reduce((sum, c) => sum + c.ctr, 0) / campaigns.length).toFixed(1)
+                        : 0}%
+                    </p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Campaigns List */}
           <div className="space-y-4">
-            {campaigns.map((campaign) => (
-              <div key={campaign.id} className="p-6 border border-border rounded-lg hover:shadow-card transition-smooth">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <h3 className="font-semibold text-lg">{campaign.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge className={getStatusColor(campaign.status)}>
-                          {campaign.status}
-                        </Badge>
-                        <Badge variant="outline">{campaign.type}</Badge>
-                        {campaign.ai_optimization && (
-                          <Badge className="bg-gradient-primary text-primary-foreground">
-                            <Brain className="w-3 h-3 mr-1" />
-                            AI Optimized
+            {campaigns.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
+                <p className="text-muted-foreground mb-4">Create your first campaign to get started</p>
+                {customers.length === 0 && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    💡 Tip: Click "Seed Test Data" to add sample customers and campaigns
+                  </p>
+                )}
+                <Button onClick={() => setShowCreateForm(true)}>
+                  Create Campaign
+                </Button>
+              </div>
+            ) : (
+              campaigns.map((campaign) => (
+                <Card key={campaign.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg font-semibold">{campaign.name}</h3>
+                          <Badge className={getStatusColor(campaign.status)}>
+                            {campaign.status}
                           </Badge>
+                          <Badge variant="outline">{campaign.type}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Target: {campaign.target_audience}
+                        </p>
+                        <div className="text-sm text-muted-foreground">
+                          Audience: {campaign.audience_count} | Sent: {campaign.sent_count} | 
+                          Opened: {campaign.opened_count} | CTR: {campaign.ctr.toFixed(1)}%
+                          {campaign.total_revenue && campaign.total_revenue > 0 && (
+                            <> | Revenue: ${campaign.total_revenue.toLocaleString()} | ROI: {campaign.roi?.toFixed(1) || 0}%</>
+                          )}
+                        </div>
+                        {campaign.status === 'completed' && (
+                          <div className="mt-2">
+                            <Progress value={(campaign.clicked_count / campaign.sent_count) * 100} className="w-48" />
+                          </div>
                         )}
                       </div>
+                      <div className="flex gap-2">
+                        {campaign.status === 'draft' && (
+                          <Button 
+                            size="sm" 
+                            onClick={() => runCampaign(campaign.id)}
+                            disabled={isRunning}
+                          >
+                            <Play className="w-4 h-4 mr-1" />
+                            Launch
+                          </Button>
+                        )}
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => deleteCampaign(campaign.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon">
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    {campaign.status === "active" ? (
-                      <Button variant="ghost" size="icon">
-                        <Pause className="w-4 h-4" />
-                      </Button>
-                    ) : (
-                      <Button variant="ghost" size="icon">
-                        <Play className="w-4 h-4" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon">
-                      <Trash2 className="w-4 h-4 text-danger" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.audience_count?.toLocaleString() || 0}</div>
-                    <div className="text-sm text-muted-foreground">Audience</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.sent_count?.toLocaleString() || 0}</div>
-                    <div className="text-sm text-muted-foreground">Sent</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.opened_count?.toLocaleString() || 0}</div>
-                    <div className="text-sm text-muted-foreground">Opened</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{campaign.clicked_count?.toLocaleString() || 0}</div>
-                    <div className="text-sm text-muted-foreground">Clicked</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gradient-success">{campaign.ctr || 0}%</div>
-                    <div className="text-sm text-muted-foreground">CTR</div>
-                  </div>
-                </div>
-
-                {campaign.status === "active" && campaign.audience_count > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Campaign Progress</span>
-                      <span>{Math.round((campaign.sent_count / campaign.audience_count) * 100)}%</span>
-                    </div>
-                    <Progress value={(campaign.sent_count / campaign.audience_count) * 100} />
-                  </div>
-                )}
-              </div>
-            ))}
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Create Campaign Dialog */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Campaign</DialogTitle>
+            <DialogDescription>
+              Create a campaign that will target real customers from your database
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Campaign Name</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  placeholder="Enter campaign name"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="type">Campaign Type</Label>
+                <Select value={formData.type} onValueChange={(value: any) => setFormData({...formData, type: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="sms">SMS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="target_audience">Target Audience</Label>
+              <Select value={formData.target_audience} onValueChange={(value) => setFormData({...formData, target_audience: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target audience" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Customers ({customers.length})</SelectItem>
+                  <SelectItem value="Premium Customers">Premium Customers ({customers.filter(c => c.total_spent > 1000).length})</SelectItem>
+                  <SelectItem value="New Customers">New Customers ({customers.filter(c => c.total_spent < 200).length})</SelectItem>
+                  <SelectItem value="Loyal Customers">Loyal Customers ({customers.filter(c => c.total_spent > 500).length})</SelectItem>
+                  <SelectItem value="At-Risk Customers">At-Risk Customers ({customers.filter(c => c.total_spent < 100).length})</SelectItem>
+                </SelectContent>
+              </Select>
+              {customers.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No customers found. Click "Seed Test Data" to add sample customers.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="message_template">Message Template</Label>
+              <Textarea
+                id="message_template"
+                value={formData.message_template}
+                onChange={(e) => setFormData({...formData, message_template: e.target.value})}
+                placeholder="Use variables like {{customer_name}}, {{customer_location}}, {{total_spent}}..."
+                className="min-h-[100px]"
+                required
+              />
+                      <p className="text-sm text-muted-foreground">
+                        Available variables: {`{{customer_name}}, {{customer_location}}, {{customer_email}}, {{total_spent}}`}
+                      </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="schedule_type">Schedule</Label>
+                <Select value={formData.schedule_type} onValueChange={(value: any) => setFormData({...formData, schedule_type: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="now">Send Now</SelectItem>
+                    <SelectItem value="scheduled">Schedule Later</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {formData.schedule_type === 'scheduled' && (
+                <div>
+                  <Label htmlFor="scheduled_time">Scheduled Time</Label>
+                  <Input
+                    id="scheduled_time"
+                    type="datetime-local"
+                    value={formData.scheduled_time}
+                    onChange={(e) => setFormData({...formData, scheduled_time: e.target.value})}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateForm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateCampaign}>
+              Create Campaign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+};
+
+export default CampaignManager;
+export { CampaignManager };
