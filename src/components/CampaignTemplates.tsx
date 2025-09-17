@@ -65,8 +65,8 @@ const CAMPAIGN_TEMPLATES: Template[] = [
     name: "Welcome Series",
     category: "Onboarding",
     subject: "Welcome to {{company_name}}! 🎉",
-    content: "Hi {{customer_name}}! \n\nWelcome to {{company_name}}! We're excited to have you join our community.\n\nAs a new customer, you'll get:\n✨ Exclusive offers\n📱 Priority support\n🎁 Special discounts\n\nReply STOP to opt out.",
-    variables: ["customer_name", "company_name"],
+    content: "Hi {{customer_name}}! \n\nWelcome to {{company_name}}! We're excited to have you join our community from {{city}}, {{country}}.\n\nAs a new customer, you'll get:\n✨ Exclusive offers\n📱 Priority support\n🎁 Special discounts\n\nReply STOP to opt out.",
+    variables: ["customer_name", "company_name", "city", "country"],
     icon: <Heart className="w-5 h-5" />,
     color: "bg-pink-500"
   },
@@ -188,6 +188,9 @@ export function CampaignTemplates() {
     const defaults: Record<string, string> = {
       'customer_name': '{{customer_name}}',
       'company_name': 'Your Company',
+      'location': '{{location}}',
+      'city': '{{city}}',
+      'country': '{{country}}',
       'discount': '20',
       'duration': '24',
       'promo_code': 'FLASH20',

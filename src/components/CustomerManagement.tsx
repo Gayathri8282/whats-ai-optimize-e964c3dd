@@ -24,7 +24,9 @@ import {
 } from "lucide-react";
 import { useCustomers, Customer } from "@/hooks/useCustomers";
 import { CustomerForm } from "@/components/CustomerForm";
+import { InternationalSampleGenerator } from "@/components/InternationalSampleGenerator";
 import { useToast } from "@/hooks/use-toast";
+import { getCountryByCode } from "@/utils/countries";
 
 export function CustomerManagement() {
   const { customers, segments, isLoading, findSimilarCustomers, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
@@ -175,6 +177,15 @@ export function CustomerManagement() {
         ))}
       </div>
 
+      {/* International Sample Generator */}
+      {customers.length < 10 && (
+        <div className="flex justify-center">
+          <div className="max-w-md w-full">
+            <InternationalSampleGenerator />
+          </div>
+        </div>
+      )}
+
       {/* Search and Filter */}
       <Card className="shadow-card">
         <CardHeader>
@@ -222,7 +233,9 @@ export function CustomerManagement() {
                     </TableCell>
                     <TableCell className="flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
-                      {customer.location}
+                      {customer.city && customer.country 
+                        ? `${customer.city}, ${getCountryByCode(customer.country)?.name || customer.country}`
+                        : customer.location}
                     </TableCell>
                     <TableCell className="font-medium">${customer.total_spent.toFixed(2)}</TableCell>
                     <TableCell>{customer.total_purchases}</TableCell>

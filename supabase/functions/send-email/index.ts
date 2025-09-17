@@ -216,10 +216,26 @@ serve(async (req) => {
 
 // Helper functions
 function personalizeMessage(template: string, customer: any): string {
+  // Get country name from country code if available
+  const countryNames: Record<string, string> = {
+    'US': 'United States', 'GB': 'United Kingdom', 'CA': 'Canada', 'IN': 'India',
+    'CN': 'China', 'JP': 'Japan', 'DE': 'Germany', 'FR': 'France', 'BR': 'Brazil',
+    'AU': 'Australia', 'IT': 'Italy', 'ES': 'Spain', 'NL': 'Netherlands',
+    'KR': 'South Korea', 'SG': 'Singapore', 'MX': 'Mexico', 'RU': 'Russia'
+  };
+
+  const countryName = customer.country ? countryNames[customer.country] || customer.country : '';
+  const cityName = customer.city || '';
+  const fullLocation = customer.city && customer.country 
+    ? `${customer.city}, ${countryName}`
+    : customer.location || '';
+
   return template
     .replace(/\{\{customer_name\}\}/g, customer.full_name || 'Valued Customer')
     .replace(/\{\{company_name\}\}/g, 'Your Company') // You can make this configurable
-    .replace(/\{\{location\}\}/g, customer.location || '')
+    .replace(/\{\{location\}\}/g, fullLocation)
+    .replace(/\{\{country\}\}/g, countryName)
+    .replace(/\{\{city\}\}/g, cityName)
     .replace(/\{\{total_spent\}\}/g, `$${customer.total_spent || 0}`)
     .replace(/\{\{campaigns_accepted\}\}/g, customer.campaigns_accepted || 0);
 }

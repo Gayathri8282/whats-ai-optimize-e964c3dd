@@ -319,7 +319,9 @@ export type Database = {
           accepted_cmp5: boolean | null
           age: number | null
           campaigns_accepted: number | null
+          city: string | null
           complain: boolean | null
+          country: string | null
           created_at: string
           email: string
           full_name: string
@@ -355,7 +357,9 @@ export type Database = {
           accepted_cmp5?: boolean | null
           age?: number | null
           campaigns_accepted?: number | null
+          city?: string | null
           complain?: boolean | null
+          country?: string | null
           created_at?: string
           email: string
           full_name: string
@@ -391,7 +395,9 @@ export type Database = {
           accepted_cmp5?: boolean | null
           age?: number | null
           campaigns_accepted?: number | null
+          city?: string | null
           complain?: boolean | null
+          country?: string | null
           created_at?: string
           email?: string
           full_name?: string

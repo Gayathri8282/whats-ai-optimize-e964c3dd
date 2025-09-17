@@ -85,11 +85,11 @@ serve(async (req) => {
           continue;
         }
 
-        // Personalize message for this customer
-        const personalizedMessage = personalizeMessage(messageTemplate, customer);
-        
-        // Add opt-out footer for compliance
-        const finalMessage = `${personalizedMessage}\n\nReply STOP to opt out from future messages.`;
+    // Personalize message for this customer
+    const personalizedMessage = personalizeMessage(messageTemplate, customer);
+    
+    // Add opt-out footer for compliance
+    const finalMessage = `${personalizedMessage}\n\nReply STOP to opt out from future messages.`;
 
         // Format phone number for WhatsApp
         const formattedPhone = formatPhoneForWhatsApp(customer.phone);
@@ -206,26 +206,49 @@ serve(async (req) => {
 
 // Helper functions
 function personalizeMessage(template: string, customer: any): string {
+  // Get country name from country code if available
+  const countryNames: Record<string, string> = {
+    'US': 'United States', 'GB': 'United Kingdom', 'CA': 'Canada', 'IN': 'India',
+    'CN': 'China', 'JP': 'Japan', 'DE': 'Germany', 'FR': 'France', 'BR': 'Brazil',
+    'AU': 'Australia', 'IT': 'Italy', 'ES': 'Spain', 'NL': 'Netherlands',
+    'KR': 'South Korea', 'SG': 'Singapore', 'MX': 'Mexico', 'RU': 'Russia'
+  };
+
+  const countryName = customer.country ? countryNames[customer.country] || customer.country : '';
+  const cityName = customer.city || '';
+  const fullLocation = customer.city && customer.country 
+    ? `${customer.city}, ${countryName}`
+    : customer.location || '';
+
   return template
     .replace(/\{\{customer_name\}\}/g, customer.full_name || 'Valued Customer')
     .replace(/\{\{company_name\}\}/g, 'Your Company') // You can make this configurable
-    .replace(/\{\{location\}\}/g, customer.location || '')
+    .replace(/\{\{location\}\}/g, fullLocation)
+    .replace(/\{\{country\}\}/g, countryName)
+    .replace(/\{\{city\}\}/g, cityName)
     .replace(/\{\{total_spent\}\}/g, `$${customer.total_spent || 0}`)
     .replace(/\{\{campaigns_accepted\}\}/g, customer.campaigns_accepted || 0);
 }
 
 function formatPhoneForWhatsApp(phone: string): string {
+  // If phone already starts with +, it's in E.164 format, just return it
+  if (phone.startsWith('+')) {
+    return phone;
+  }
+  
   // Remove all non-digits
   const cleaned = phone.replace(/\D/g, '');
   
-  // Add country code if missing (assuming US +1)
+  // If it's US format (10 digits), add +1
   if (cleaned.length === 10) {
     return `+1${cleaned}`;
-  } else if (cleaned.length === 11 && cleaned.startsWith('1')) {
+  } 
+  // If it's US format with country code (11 digits starting with 1), add +
+  else if (cleaned.length === 11 && cleaned.startsWith('1')) {
     return `+${cleaned}`;
-  } else if (cleaned.startsWith('+')) {
-    return phone;
-  } else {
+  } 
+  // For any other format, add + if not present
+  else {
     return `+${cleaned}`;
   }
 }
