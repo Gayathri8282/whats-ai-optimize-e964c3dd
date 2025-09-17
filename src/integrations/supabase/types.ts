@@ -98,6 +98,36 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          data: Json
+          expires_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          data: Json
+          expires_at: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          data?: Json
+          expires_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       campaign_metrics: {
         Row: {
           campaign_id: string | null
@@ -223,12 +253,123 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          accepted_cmp1: boolean | null
+          accepted_cmp2: boolean | null
+          accepted_cmp3: boolean | null
+          accepted_cmp4: boolean | null
+          accepted_cmp5: boolean | null
+          age: number | null
+          campaigns_accepted: number | null
+          complain: boolean | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          income: number | null
+          kidhome: number | null
+          location: string
+          mnt_fruits: number | null
+          mnt_gold_prods: number | null
+          mnt_meat_products: number | null
+          mnt_wines: number | null
+          num_catalog_purchases: number | null
+          num_store_purchases: number | null
+          num_web_purchases: number | null
+          num_web_visits_month: number | null
+          phone: string
+          recency: number | null
+          response: boolean | null
+          teenhome: number | null
+          total_purchases: number | null
+          total_spent: number | null
+          updated_at: string
+          user_id: string
+          z_cost_contact: number | null
+          z_revenue: number | null
+        }
+        Insert: {
+          accepted_cmp1?: boolean | null
+          accepted_cmp2?: boolean | null
+          accepted_cmp3?: boolean | null
+          accepted_cmp4?: boolean | null
+          accepted_cmp5?: boolean | null
+          age?: number | null
+          campaigns_accepted?: number | null
+          complain?: boolean | null
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          income?: number | null
+          kidhome?: number | null
+          location: string
+          mnt_fruits?: number | null
+          mnt_gold_prods?: number | null
+          mnt_meat_products?: number | null
+          mnt_wines?: number | null
+          num_catalog_purchases?: number | null
+          num_store_purchases?: number | null
+          num_web_purchases?: number | null
+          num_web_visits_month?: number | null
+          phone: string
+          recency?: number | null
+          response?: boolean | null
+          teenhome?: number | null
+          total_purchases?: number | null
+          total_spent?: number | null
+          updated_at?: string
+          user_id: string
+          z_cost_contact?: number | null
+          z_revenue?: number | null
+        }
+        Update: {
+          accepted_cmp1?: boolean | null
+          accepted_cmp2?: boolean | null
+          accepted_cmp3?: boolean | null
+          accepted_cmp4?: boolean | null
+          accepted_cmp5?: boolean | null
+          age?: number | null
+          campaigns_accepted?: number | null
+          complain?: boolean | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          income?: number | null
+          kidhome?: number | null
+          location?: string
+          mnt_fruits?: number | null
+          mnt_gold_prods?: number | null
+          mnt_meat_products?: number | null
+          mnt_wines?: number | null
+          num_catalog_purchases?: number | null
+          num_store_purchases?: number | null
+          num_web_purchases?: number | null
+          num_web_visits_month?: number | null
+          phone?: string
+          recency?: number | null
+          response?: boolean | null
+          teenhome?: number | null
+          total_purchases?: number | null
+          total_spent?: number | null
+          updated_at?: string
+          user_id?: string
+          z_cost_contact?: number | null
+          z_revenue?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      compute_campaign_analytics: {
+        Args: { user_uuid: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
