@@ -28,7 +28,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Starting A/B test:', testId);
+    console.log('🎯 Starting A/B test:', testId);
+    console.log('📊 Found test data:', testData);
+    console.log('🔍 Available customers:', customers?.length || 0);
+    console.log('📝 Test variations:', variations?.length || 0);
 
     // Get test details and campaign info
     const { data: testData, error: testError } = await supabase
@@ -41,7 +44,8 @@ serve(async (req) => {
       .single();
 
     if (testError || !testData) {
-      throw new Error('A/B test not found');
+      console.error('❌ Test lookup failed:', testError);
+      throw new Error(`A/B test not found: ${testError?.message || 'Unknown error'}`);
     }
 
     // Get variations for this test
@@ -51,7 +55,8 @@ serve(async (req) => {
       .eq('ab_test_id', testId);
 
     if (variationsError || !variations || variations.length === 0) {
-      throw new Error('No variations found for this test');
+      console.error('❌ Variations lookup failed:', variationsError);
+      throw new Error(`No variations found for this test: ${variationsError?.message || 'No variations exist'}`);
     }
 
     // Get eligible customers based on target audience
@@ -62,7 +67,8 @@ serve(async (req) => {
       .limit(testData.customer_count || 100);
 
     if (customersError || !customers || customers.length === 0) {
-      throw new Error('No eligible customers found');
+      console.error('❌ Customers lookup failed:', customersError);
+      throw new Error(`No eligible customers found. Please seed test data first: ${customersError?.message || 'No customers exist'}`);
     }
 
     // Randomly assign customers to variations
@@ -93,7 +99,8 @@ serve(async (req) => {
       .insert(results);
 
     if (resultsError) {
-      throw resultsError;
+      console.error('❌ Failed to insert customer assignments:', resultsError);
+      throw new Error(`Failed to assign customers to test: ${resultsError.message}`);
     }
 
     // Simulate sending messages and track metrics
@@ -175,17 +182,23 @@ serve(async (req) => {
         customerUpdates.push(update);
       }
 
-      // Batch update customer results - Fix: Use proper customer_id from results
-      for (const customerUpdate of customerUpdates) {
-        const originalResult = sortedResults.find((_, idx) => idx === customerUpdates.indexOf(customerUpdate));
-        if (originalResult) {
+      // Batch update customer results - Fixed customer assignment logic
+      for (let j = 0; j < customerUpdates.length; j++) {
+        const customerUpdate = customerUpdates[j];
+        const originalResult = sortedResults[j];
+        
+        if (originalResult && customerUpdate) {
           const { id, ...updateData } = customerUpdate;
-          await supabase
+          const { error: updateResultError } = await supabase
             .from('ab_test_results')
             .update(updateData)
             .eq('ab_test_id', testId)
             .eq('variation_id', variation.id)
             .eq('customer_id', originalResult.customer_id);
+            
+          if (updateResultError) {
+            console.error('Error updating customer result:', updateResultError);
+          }
         }
       }
     }
@@ -220,7 +233,8 @@ serve(async (req) => {
         .eq('id', testId);
     }
 
-    console.log('A/B test started successfully with real customer assignments');
+    console.log('✅ A/B test started successfully with real customer assignments');
+    console.log('📈 Total customers assigned:', results.length);
 
     return new Response(JSON.stringify({ 
       success: true,

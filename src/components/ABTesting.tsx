@@ -97,6 +97,7 @@ export function ABTesting() {
   const [selectedTest, setSelectedTest] = useState<ABTest | null>(null);
   const [variants, setVariants] = useState<string[]>(['', '', '']);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -469,26 +470,34 @@ export function ABTesting() {
   };
 
   const startABTest = async (testId: string) => {
+    setIsStarting(true);
     try {
-      const { error } = await supabase.functions.invoke('start-ab-test', {
+      console.log('🚀 Starting A/B test with ID:', testId);
+      
+      const { data, error } = await supabase.functions.invoke('start-ab-test', {
         body: { testId }
       });
+
+      console.log('📊 Start test response:', data);
+      console.log('❌ Start test error:', error);
 
       if (error) throw error;
 
       toast({
-        title: "A/B Test Started",
-        description: "The test is now running and collecting real data from customer interactions.",
+        title: "A/B Test Started! 🎯",
+        description: `Test is now running with seed test data. Assigned ${data?.customersAssigned || 'multiple'} customers.`,
       });
 
       await fetchABTests();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting A/B test:', error);
       toast({
         title: "Start Failed",
-        description: "Failed to start the A/B test.",
+        description: error.message || "Failed to start the A/B test. Check if you have seed data.",
         variant: "destructive",
       });
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -902,9 +911,19 @@ export function ABTesting() {
                           e.stopPropagation();
                           startABTest(test.id);
                         }}
+                        disabled={isStarting}
                       >
-                        <Play className="w-3 h-3 mr-1" />
-                        Start Test
+                        {isStarting ? (
+                          <>
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Starting...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3 mr-1" />
+                            Start Test
+                          </>
+                        )}
                       </Button>
                     )}
                     {test.status === 'running' && (
