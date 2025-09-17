@@ -55,7 +55,7 @@ serve(async (req) => {
     console.log('Context built:', context);
 
     // Create system prompt with business context
-    const systemPrompt = `You are an advanced WhatsApp Marketing Assistant for a sophisticated marketing platform. You have access to real-time business data and can provide intelligent insights.
+    const systemPrompt = `You are a professional WhatsApp Marketing Assistant with access to real-time business data. Provide clear, actionable insights without using markdown formatting, asterisks, or excessive emojis.
 
 CURRENT BUSINESS CONTEXT:
 - Total Customers: ${context.totalCustomers}
@@ -65,27 +65,16 @@ CURRENT BUSINESS CONTEXT:
 - Customer Sentiment: ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative
 - Top Customers: ${context.topCustomers.map(c => `${c.name} ($${c.spent})`).join(', ')}
 
-CAPABILITIES:
-1. Campaign Performance Analysis - Analyze ROI, CTR, and conversion metrics
-2. Customer Segmentation - Provide insights on high-value vs. low-value customers
-3. Marketing Strategy - Suggest campaigns based on customer behavior
-4. Sentiment Analysis - Interpret customer feedback and complaints
-5. Revenue Optimization - Recommend actions to increase revenue
-6. Market Insights - Provide data-driven marketing recommendations
+RESPONSE GUIDELINES:
+- Write in plain text without markdown formatting
+- Be conversational yet professional
+- Provide specific data-driven recommendations
+- Keep responses under 150 words
+- Focus on actionable insights
+- No asterisks, no excessive emojis, no bold formatting
+- Use bullet points with simple dashes if needed
 
-PERSONALITY:
-- Expert marketing consultant with deep analytics knowledge
-- Proactive in suggesting actionable insights
-- Uses data to back up every recommendation
-- Friendly but professional tone
-- Always provide specific, measurable suggestions
-
-RESPONSE STYLE:
-- Start with a direct answer
-- Include relevant data points
-- Provide 2-3 actionable recommendations
-- Use marketing terminology appropriately
-- Keep responses under 200 words but information-dense`;
+Your goal is to help optimize marketing campaigns, analyze customer data, and improve ROI using the provided business metrics.`;
 
     // Analyze the message to provide contextual responses
     let aiResponse = "";
@@ -121,80 +110,67 @@ RESPONSE STYLE:
       
       // Intelligent fallback responses based on message content and data
       if (message.toLowerCase().includes('campaign') || message.toLowerCase().includes('performance')) {
-        aiResponse = `📊 **Campaign Performance Analysis**
+        aiResponse = `Your campaign performance shows excellent results with ${context.totalCustomers} customers generating $${context.totalRevenue?.toFixed(2)} in revenue and a ${context.roi?.toFixed(1)}% ROI.
 
-Based on your current data:
-• **${context.totalCustomers} customers** generating **$${context.totalRevenue?.toFixed(2)} revenue**
-• **ROI: ${context.roi?.toFixed(1)}%** - Excellent performance! 
-• **Average CTR: ${context.avgCTR?.toFixed(1)}%** - Strong engagement
+Your ${context.avgCTR?.toFixed(1)}% average CTR indicates strong engagement. Top performing customers include ${context.topCustomers.map(c => `${c.name} ($${c.spent})`).join(', ')}.
 
-**Top Performers:**
-${context.topCustomers.map(c => `• ${c.name}: $${c.spent} (${c.campaigns} campaigns)`).join('\n')}
+To improve further:
+- Target customers with similar profiles to your top performers
+- Test different messaging approaches during peak engagement hours
+- Consider premium campaign tiers for high-value customer segments
 
-**Recommendations:**
-1. Target similar profiles to your top customers
-2. A/B test your messaging for even better CTR
-3. Consider premium campaigns for high-value segments`;
+Your current performance is above industry standards. Focus on scaling what's working rather than major changes.`;
 
       } else if (message.toLowerCase().includes('customer') || message.toLowerCase().includes('segment')) {
-        aiResponse = `👥 **Customer Insights & Segmentation**
+        aiResponse = `Your customer base of ${context.totalCustomers} shows a sentiment distribution of ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, and ${context.sentiment.negative} negative responses.
 
-**Portfolio Overview:**
-• **Total Customers:** ${context.totalCustomers}
-• **Sentiment Distribution:** ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative
+Your highest-value customers are ${context.topCustomers.map(c => `${c.name} ($${c.spent} from ${c.location})`).join(', ')}. These customers have accepted ${context.topCustomers.reduce((sum, c) => sum + c.campaigns, 0)} campaigns total.
 
-**High-Value Customers:**
-${context.topCustomers.map(c => `• **${c.name}** - $${c.spent} spent | ${c.location} | ${c.campaigns} campaigns accepted`).join('\n')}
+Recommended segmentation approach:
+- VIP Tier (spending over $1000): Offer personalized premium campaigns with exclusive access
+- Active Tier ($500-$1000): Regular engagement with seasonal promotions
+- Growth Tier (under $500): Focus on re-engagement campaigns and product upselling
 
-**Segmentation Strategy:**
-1. **VIP Tier** (>$1000): Personalized premium campaigns
-2. **Active Tier** ($500-$1000): Regular engagement campaigns  
-3. **Growth Tier** (<$500): Re-engagement and upsell campaigns`;
+Target customers with spending patterns similar to your top performers for best ROI.`;
 
       } else if (message.toLowerCase().includes('roi') || message.toLowerCase().includes('revenue') || message.toLowerCase().includes('profit')) {
-        aiResponse = `💰 **Revenue & ROI Analysis**
+        aiResponse = `Your revenue performance is exceptional with $${context.totalRevenue?.toFixed(2)} total revenue and ${context.roi?.toFixed(1)}% ROI. This translates to $${(context.totalRevenue / context.totalCustomers)?.toFixed(2)} average revenue per customer.
 
-**Current Performance:**
-• **Total Revenue:** $${context.totalRevenue?.toFixed(2)}
-• **ROI:** ${context.roi?.toFixed(1)}% (Outstanding!)
-• **Revenue per Customer:** $${(context.totalRevenue / context.totalCustomers)?.toFixed(2)}
+Your top revenue drivers are ${context.topCustomers.map((c, i) => `${c.name} contributing $${c.spent} (${((c.spent / context.totalRevenue) * 100)?.toFixed(1)}% of total)`).join(', ')}.
 
-**Revenue Drivers:**
-${context.topCustomers.map((c, i) => `${i + 1}. ${c.name}: $${c.spent} (${((c.spent / context.totalRevenue) * 100)?.toFixed(1)}% of total)`).join('\n')}
+To optimize further:
+- Identify and target customers with profiles matching your top 20% performers
+- Implement tiered pricing strategies for different customer segments  
+- Cross-sell complementary products to single-category customers
 
-**Optimization Opportunities:**
-1. Focus on customers similar to your top 20%
-2. Implement tiered pricing for premium segments
-3. Cross-sell to customers with single category purchases`;
+Your current ROI significantly exceeds industry benchmarks. Focus on scaling successful strategies rather than major pivots.`;
 
       } else if (message.toLowerCase().includes('help') || message.toLowerCase().includes('what can you do')) {
-        aiResponse = `🚀 **Advanced Marketing Assistant Capabilities**
+        aiResponse = `I'm your advanced marketing assistant with access to your live business data: ${context.totalCustomers} customers, $${context.totalRevenue?.toFixed(2)} revenue, and ${context.roi?.toFixed(1)}% ROI.
 
-I have real-time access to your business data:
-• **${context.totalCustomers} customers** | **$${context.totalRevenue?.toFixed(2)} revenue** | **${context.roi?.toFixed(1)}% ROI**
+I can help you with:
+- Campaign performance analysis and ROI optimization
+- Customer segmentation and VIP identification strategies
+- Revenue analysis and growth opportunity identification
+- WhatsApp marketing strategy and message timing
+- Data interpretation and actionable recommendations
 
-**What I Can Help With:**
-📈 **Campaign Analysis** - Performance metrics, ROI optimization
-👥 **Customer Segmentation** - VIP identification, targeting strategies  
-💰 **Revenue Insights** - Profit analysis, growth opportunities
-📱 **WhatsApp Strategy** - Message timing, content optimization
-📊 **Data Interpretation** - Trend analysis, actionable recommendations
+Try asking me:
+"How can I increase my ROI?"
+"Which customers should I target next?" 
+"Analyze my campaign performance"
+"What's my best customer segment?"
 
-**Try asking me:**
-• "How can I increase my ROI?"
-• "Which customers should I target next?"
-• "Analyze my campaign performance"
-• "What's my best customer segment?"`;
+I provide data-driven insights specific to your business metrics to help you make informed marketing decisions.`;
 
       } else {
-        aiResponse = `👋 Hello! I'm your **Advanced Marketing AI** with access to your live business data.
+        aiResponse = `Hello! I'm your advanced marketing assistant with access to your live business data.
 
-**Quick Overview:**
-• **${context.totalCustomers} customers** generating **$${context.totalRevenue?.toFixed(2)} revenue**
-• **${context.roi?.toFixed(1)}% ROI** with **${context.avgCTR?.toFixed(1)}% average CTR**
-• **Customer Sentiment:** ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative
+Your current overview: ${context.totalCustomers} customers generating $${context.totalRevenue?.toFixed(2)} revenue with a ${context.roi?.toFixed(1)}% ROI and ${context.avgCTR?.toFixed(1)}% average CTR. Customer sentiment shows ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, and ${context.sentiment.negative} negative responses.
 
-I can provide detailed insights on campaigns, customer segmentation, revenue optimization, and marketing strategies. What would you like to explore?`;
+I can help you analyze campaign performance, segment customers effectively, optimize revenue streams, and develop targeted marketing strategies.
+
+What specific aspect of your marketing would you like to explore today?`;
       }
     }
 
