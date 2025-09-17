@@ -33,12 +33,15 @@ serve(async (req) => {
     console.log('🔍 Available customers:', customers?.length || 0);
     console.log('📝 Test variations:', variations?.length || 0);
 
-    // Get test details and campaign info
+    // Get test details and campaign info with proper join syntax
     const { data: testData, error: testError } = await supabase
       .from('ab_tests')
       .select(`
         *,
-        campaigns!inner(user_id, target_audience)
+        campaigns (
+          user_id,
+          target_audience
+        )
       `)
       .eq('id', testId)
       .single();
@@ -47,6 +50,8 @@ serve(async (req) => {
       console.error('❌ Test lookup failed:', testError);
       throw new Error(`A/B test not found: ${testError?.message || 'Unknown error'}`);
     }
+
+    console.log('📋 Test data structure:', JSON.stringify(testData, null, 2));
 
     // Get variations for this test
     const { data: variations, error: variationsError } = await supabase
@@ -60,10 +65,18 @@ serve(async (req) => {
     }
 
     // Get eligible customers based on target audience
+    const campaignData = Array.isArray(testData.campaigns) ? testData.campaigns[0] : testData.campaigns;
+    const userId = campaignData?.user_id;
+    
+    if (!userId) {
+      throw new Error('Could not determine user ID from campaign data');
+    }
+    
     const { data: customers, error: customersError } = await supabase
       .from('customers')
       .select('id')
-      .eq('user_id', testData.campaigns.user_id)
+      .eq('user_id', userId)
+      .eq('opt_out', false)
       .limit(testData.customer_count || 100);
 
     if (customersError || !customers || customers.length === 0) {
@@ -234,7 +247,9 @@ serve(async (req) => {
     }
 
     console.log('✅ A/B test started successfully with real customer assignments');
+    console.log('👥 User ID:', userId);
     console.log('📈 Total customers assigned:', results.length);
+    console.log('🎯 Test variations:', variations.length);
 
     return new Response(JSON.stringify({ 
       success: true,
