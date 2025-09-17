@@ -24,6 +24,21 @@ export interface Customer {
   mnt_gold_prods: number;
   recency: number;
   created_at: string;
+  // Additional database fields
+  kidhome?: number;
+  teenhome?: number;
+  num_web_purchases?: number;
+  num_store_purchases?: number;
+  num_catalog_purchases?: number;
+  num_web_visits_month?: number;
+  response?: boolean;
+  z_cost_contact?: number;
+  z_revenue?: number;
+  accepted_cmp1?: boolean;
+  accepted_cmp2?: boolean;
+  accepted_cmp3?: boolean;
+  accepted_cmp4?: boolean;
+  accepted_cmp5?: boolean;
 }
 
 export interface CustomerSegment {
@@ -146,7 +161,21 @@ export function useCustomers(limit: number = 50) {
       const newCustomer = {
         ...customerData,
         user_id: user.id,
-        created_at: new Date().toISOString(),
+        // Provide default values for database fields not in the form
+        kidhome: customerData.kidhome ?? 0,
+        teenhome: customerData.teenhome ?? 0,
+        num_web_purchases: customerData.num_web_purchases ?? 0,
+        num_store_purchases: customerData.num_store_purchases ?? 0,
+        num_catalog_purchases: customerData.num_catalog_purchases ?? 0,
+        num_web_visits_month: customerData.num_web_visits_month ?? 0,
+        response: customerData.response ?? false,
+        z_cost_contact: customerData.z_cost_contact ?? 3.0,
+        z_revenue: customerData.z_revenue ?? 11.0,
+        accepted_cmp1: customerData.accepted_cmp1 ?? false,
+        accepted_cmp2: customerData.accepted_cmp2 ?? false,
+        accepted_cmp3: customerData.accepted_cmp3 ?? false,
+        accepted_cmp4: customerData.accepted_cmp4 ?? false,
+        accepted_cmp5: customerData.accepted_cmp5 ?? false,
       };
 
       const { data, error } = await supabase
