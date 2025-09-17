@@ -18,7 +18,7 @@ import {
   Bot,
   User
 } from "lucide-react";
-import { useConversation } from "@11labs/react";
+
 
 interface Message {
   id: string;
@@ -38,35 +38,8 @@ export function ChatPreview() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // ElevenLabs Voice Conversation
-  const conversation = useConversation({
-    onConnect: () => {
-      toast({
-        title: "Voice Connected",
-        description: "Voice conversation is now active",
-      });
-    },
-    onDisconnect: () => {
-      toast({
-        title: "Voice Disconnected", 
-        description: "Voice conversation ended",
-      });
-    },
-    onMessage: (message) => {
-      if (message.type === 'user_transcript' && message.message) {
-        addMessage(message.message, 'user');
-      } else if (message.type === 'agent_response' && message.message) {
-        addMessage(message.message, 'bot');
-      }
-    },
-    onError: (error) => {
-      toast({
-        title: "Voice Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
+  // Voice conversation state (simplified implementation)
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -127,22 +100,13 @@ export function ChatPreview() {
 
   const startVoiceConversation = async () => {
     try {
-      if (!apiKey) {
-        toast({
-          title: "API Key Required",
-          description: "Please enter your ElevenLabs API key first",
-          variant: "destructive"
-        });
-        return;
-      }
-
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // For demo purposes, we'll simulate voice conversation
       setUseVoice(true);
+      setIsVoiceActive(true);
+      
       toast({
         title: "Voice Mode Activated",
-        description: "Speak naturally to interact with the AI assistant",
+        description: "Voice features will be available when ElevenLabs is configured",
       });
       
     } catch (error) {
@@ -156,6 +120,7 @@ export function ChatPreview() {
 
   const stopVoiceConversation = () => {
     setUseVoice(false);
+    setIsVoiceActive(false);
     toast({
       title: "Voice Mode Deactivated",
       description: "Switched back to text mode",
