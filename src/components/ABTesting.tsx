@@ -176,12 +176,17 @@ export function ABTesting() {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, full_name, email, phone, location, total_spent, opt_out')
+        .select('id, full_name, email, phone, location, total_spent, opt_out, created_at')
         .eq('opt_out', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setCustomers(data || []);
+      
+      // Log for debugging seed data visibility
+      console.log('Fetched customers:', data?.length || 0);
+      const seedCustomers = data?.filter(c => c.full_name?.includes('Test') || c.full_name?.includes('[SEED]')) || [];
+      console.log('Seed customers found:', seedCustomers.length);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -559,23 +564,44 @@ export function ABTesting() {
 
   const getBestVariation = (variations: ABTestVariation[]) => {
     if (!variations || variations.length === 0) return null;
-    return variations.reduce((best, current) => 
-      current.ctr > best.ctr ? current : best
-    );
+    
+    // First try to find marked winner
+    const markedWinner = variations.find(v => v.is_winner);
+    if (markedWinner) return markedWinner;
+    
+    // Then find by highest CTR, but only if there are actual results
+    const variationsWithResults = variations.filter(v => v.sent_count > 0);
+    if (variationsWithResults.length === 0) return null;
+    
+    return variationsWithResults.reduce((best, current) => {
+      // Calculate actual CTR from sent and clicked counts
+      const currentCtr = current.sent_count > 0 ? (current.clicked_count / current.sent_count) * 100 : 0;
+      const bestCtr = best.sent_count > 0 ? (best.clicked_count / best.sent_count) * 100 : 0;
+      return currentCtr > bestCtr ? current : best;
+    });
   };
 
   const calculatePerformanceData = () => {
     if (!selectedTest?.variations) return [];
     
-    return selectedTest.variations.map(variation => ({
-      name: `Variant ${variation.variation_name}`,
-      CTR: parseFloat(variation.ctr.toFixed(2)),
-      Conversions: variation.conversion_count,
-      Revenue: variation.conversion_count * 150, // Estimated revenue
-      Opens: variation.opened_count,
-      Clicks: variation.clicked_count,
-      Sent: variation.sent_count
-    }));
+    return selectedTest.variations.map(variation => {
+      // Calculate real CTR from actual counts
+      const actualCtr = variation.sent_count > 0 ? (variation.clicked_count / variation.sent_count) * 100 : 0;
+      const openRate = variation.sent_count > 0 ? (variation.opened_count / variation.sent_count) * 100 : 0;
+      const conversionRate = variation.clicked_count > 0 ? (variation.conversion_count / variation.clicked_count) * 100 : 0;
+      
+      return {
+        name: `Variant ${variation.variation_name}`,
+        CTR: parseFloat(actualCtr.toFixed(2)),
+        'Open Rate': parseFloat(openRate.toFixed(2)),
+        'Conversion Rate': parseFloat(conversionRate.toFixed(2)),
+        Conversions: variation.conversion_count,
+        Revenue: variation.conversion_count * 150, // Estimated revenue
+        Opens: variation.opened_count,
+        Clicks: variation.clicked_count,
+        Sent: variation.sent_count
+      };
+    });
   };
 
   const getVariationResults = async (testId: string) => {
@@ -780,16 +806,21 @@ export function ABTesting() {
                     />
                   </div>
                   
-                   {/* Debug info for seed data visibility */}
-                   <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
-                     <p><strong>📊 Data Status:</strong></p>
-                     <p>• Total Customers: {customers.length}</p>
-                     <p>• Total Campaigns: {campaigns.length}</p>
-                     <p>• A/B Tests: {abTests.length}</p>
-                     {selectedCampaign && (
-                       <p>• Eligible for "{targetAudience || selectedCampaign.target_audience}": {getEligibleCustomers(targetAudience || selectedCampaign.target_audience).length}</p>
-                     )}
-                   </div>
+                    {/* Debug info for seed data visibility */}
+                    <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
+                      <p><strong>📊 Data Status:</strong></p>
+                      <p>• Total Customers: {customers.length}</p>
+                      <p>• Seed Customers: {customers.filter(c => c.full_name?.includes('Test') || c.full_name?.includes('[SEED]')).length}</p>
+                      <p>• Total Campaigns: {campaigns.length}</p>
+                      <p>• Seed Campaigns: {campaigns.filter(c => c.name?.includes('[TEST]')).length}</p>
+                      <p>• A/B Tests: {abTests.length}</p>
+                      {selectedCampaign && (
+                        <p>• Eligible for "{targetAudience || selectedCampaign.target_audience}": {getEligibleCustomers(targetAudience || selectedCampaign.target_audience).length}</p>
+                      )}
+                      <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                        💡 If you don't see seed data, click "Seed Test Data" button above
+                      </div>
+                    </div>
                 </div>
               </div>
 
@@ -1044,19 +1075,60 @@ export function ABTesting() {
                 <CardContent>
                   {selectedTest.variations && selectedTest.variations.length > 0 && (
                     <div className="space-y-4">
-                      {/* Performance Chart */}
-                      <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={calculatePerformanceData()}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="CTR" fill="#8884d8" name="CTR %" />
-                            <Bar dataKey="Conversions" fill="#82ca9d" name="Conversions" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
+                       {/* Performance Charts */}
+                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                         {/* CTR and Conversion Chart */}
+                         <div className="h-64">
+                           <h4 className="text-sm font-medium mb-2">Click-Through & Conversion Rates</h4>
+                           <ResponsiveContainer width="100%" height="100%">
+                             <BarChart data={calculatePerformanceData()}>
+                               <CartesianGrid strokeDasharray="3 3" />
+                               <XAxis dataKey="name" fontSize={12} />
+                               <YAxis fontSize={12} />
+                               <Tooltip />
+                               <Bar dataKey="CTR" fill="#3b82f6" name="CTR %" />
+                               <Bar dataKey="Open Rate" fill="#10b981" name="Open Rate %" />
+                               <Bar dataKey="Conversion Rate" fill="#f59e0b" name="Conversion Rate %" />
+                             </BarChart>
+                           </ResponsiveContainer>
+                         </div>
+                         
+                         {/* Volume Chart */}
+                         <div className="h-64">
+                           <h4 className="text-sm font-medium mb-2">Message Volume & Results</h4>
+                           <ResponsiveContainer width="100%" height="100%">
+                             <BarChart data={calculatePerformanceData()}>
+                               <CartesianGrid strokeDasharray="3 3" />
+                               <XAxis dataKey="name" fontSize={12} />
+                               <YAxis fontSize={12} />
+                               <Tooltip />
+                               <Bar dataKey="Sent" fill="#6b7280" name="Messages Sent" />
+                               <Bar dataKey="Opens" fill="#3b82f6" name="Opens" />
+                               <Bar dataKey="Clicks" fill="#10b981" name="Clicks" />
+                               <Bar dataKey="Conversions" fill="#8b5cf6" name="Conversions" />
+                             </BarChart>
+                           </ResponsiveContainer>
+                         </div>
+                       </div>
+                       
+                       {/* Winner Display */}
+                       {(() => {
+                         const bestVariation = getBestVariation(selectedTest.variations || []);
+                         return bestVariation && selectedTest.status === 'running' ? (
+                           <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-4">
+                             <div className="flex items-center gap-2 mb-2">
+                               <Trophy className="w-5 h-5 text-yellow-600" />
+                               <h4 className="font-semibold text-yellow-800">
+                                 Current Leader: Variant {bestVariation.variation_name}
+                               </h4>
+                             </div>
+                             <p className="text-sm text-yellow-700">
+                               CTR: {bestVariation.sent_count > 0 ? ((bestVariation.clicked_count / bestVariation.sent_count) * 100).toFixed(2) : 0}% 
+                               | {bestVariation.clicked_count} clicks from {bestVariation.sent_count} sent
+                             </p>
+                           </div>
+                         ) : null;
+                       })()}
 
                       {/* Variations Performance */}
                       <div className="grid grid-cols-1 gap-4">

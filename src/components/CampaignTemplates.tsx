@@ -331,6 +331,64 @@ export function CampaignTemplates() {
       return;
     }
 
+    const finalSubject = replaceVariables(editedSubject);
+    const finalContent = replaceVariables(editedContent);
+
+    // WhatsApp URL-based sending
+    if (selectedChannel === 'whatsapp') {
+      const results: any = {
+        total: eligibleCustomers.length,
+        sent: 0,
+        failed: 0,
+        optedOut: 0,
+        details: []
+      };
+
+      try {
+        setIsSending(true);
+        
+        // Open WhatsApp URLs for each customer
+        eligibleCustomers.forEach((customer, index) => {
+          setTimeout(() => {
+            const phone = customer.phone.startsWith('+') ? customer.phone.slice(1) : customer.phone;
+            const encodedMessage = encodeURIComponent(finalContent);
+            const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
+            
+            // Open URL in new tab
+            window.open(whatsappUrl, '_blank');
+            
+            results.sent++;
+            results.details.push({
+              customer: customer.full_name,
+              phone: customer.phone,
+              status: 'sent',
+              whatsappUrl: whatsappUrl
+            });
+          }, index * 1000); // Delay each URL opening by 1 second
+        });
+
+        setSendResults(results);
+        setShowResults(true);
+        
+        toast({
+          title: "WhatsApp URLs Opened! 📱",
+          description: `Opening ${eligibleCustomers.length} WhatsApp conversations. Check your browser tabs.`,
+        });
+
+      } catch (error) {
+        console.error('WhatsApp URL opening error:', error);
+        toast({
+          title: "WhatsApp Opening Failed",
+          description: "Failed to open WhatsApp URLs. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
+    // Email sending via edge function
     try {
       setIsSending(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -342,9 +400,6 @@ export function CampaignTemplates() {
 
       console.log('User authenticated:', user.id);
 
-      const finalSubject = replaceVariables(editedSubject);
-      const finalContent = replaceVariables(editedContent);
-
       // Prepare the request
       const sendRequest = {
         userId: user.id,
@@ -355,19 +410,14 @@ export function CampaignTemplates() {
         sendToAll: selectAllCustomers
       };
 
-      console.log('Sending campaign request:', { 
-        channel: selectedChannel, 
+      console.log('Sending email campaign request:', { 
         template: selectedTemplate.name,
         customerCount: eligibleCustomers.length,
         sendToAll: selectAllCustomers,
         selectedCustomerIds: selectedCustomers.length
       });
 
-      // Call the appropriate edge function
-      const functionName = selectedChannel === 'whatsapp' ? 'send-whatsapp' : 'send-email';
-      console.log(`Calling edge function: ${functionName}`);
-      
-      const { data, error } = await supabase.functions.invoke(functionName, {
+      const { data, error } = await supabase.functions.invoke('send-email', {
         body: sendRequest
       });
 
@@ -384,7 +434,7 @@ export function CampaignTemplates() {
         setShowResults(true);
         
         toast({
-          title: `${selectedChannel === 'whatsapp' ? 'WhatsApp' : 'Email'} Campaign Sent! 🚀`,
+          title: "Email Campaign Sent! 📧",
           description: `Sent: ${data.results.sent}, Failed: ${data.results.failed}${data.results.optedOut > 0 ? `, Opted out: ${data.results.optedOut}` : ''}`,
         });
       } else {
