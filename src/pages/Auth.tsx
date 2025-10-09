@@ -14,7 +14,6 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -41,26 +40,8 @@ export default function Auth() {
     
     if (!email || !password) {
       toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (isSignUp && password !== confirmPassword) {
-      toast({
-        title: "Error", 
-        description: "Passwords don't match",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({
-        title: "Error",
-        description: "Password must be at least 6 characters",
+        title: "Missing information",
+        description: "Please enter both email and password",
         variant: "destructive"
       });
       return;
@@ -72,34 +53,58 @@ export default function Auth() {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email,
-          password
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`
+          }
         });
         
-        if (error) throw error;
-        
-        toast({
-          title: "Success",
-          description: "Check your email for the confirmation link",
-          variant: "default"
-        });
+        if (error) {
+          if (error.message.includes("already registered")) {
+            toast({
+              title: "Account exists",
+              description: "This email is already registered. Try signing in instead.",
+              variant: "destructive"
+            });
+          } else {
+            throw error;
+          }
+        } else {
+          toast({
+            title: "Account created!",
+            description: "You can now sign in",
+            variant: "default"
+          });
+          setIsSignUp(false);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password
         });
         
-        if (error) throw error;
-        
-        toast({
-          title: "Success",
-          description: "Welcome back!",
-          variant: "default"
-        });
+        if (error) {
+          if (error.message.includes("Invalid login credentials")) {
+            toast({
+              title: "Login failed",
+              description: "Wrong email or password. Please try again.",
+              variant: "destructive"
+            });
+          } else {
+            throw error;
+          }
+        } else {
+          toast({
+            title: "Welcome back!",
+            description: "Redirecting...",
+            variant: "default"
+          });
+        }
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Authentication failed",
+        description: error.message || "Something went wrong",
         variant: "destructive"
       });
     } finally {
@@ -111,14 +116,14 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
       <Card className="w-full max-w-md shadow-card">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gradient-primary">
-            {isSignUp ? "Create Account" : "Welcome Back"}
+        <CardHeader className="text-center space-y-2">
+          <CardTitle className="text-2xl font-bold">
+            {isSignUp ? "Create Account" : "Sign In"}
           </CardTitle>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {isSignUp 
-              ? "Sign up for AI-Powered WhatsApp Marketing" 
-              : "Sign in to your account"
+              ? "Enter your email and password to get started" 
+              : "Enter your email and password to continue"
             }
           </p>
         </CardHeader>
@@ -126,75 +131,55 @@ export default function Auth() {
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={isSignUp ? "new-password" : "current-password"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? "Hide" : "Show"} password
+              </button>
             </div>
 
-            {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                  <Input
-                    id="confirmPassword"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (isSignUp ? "Creating Account..." : "Signing In...") : (isSignUp ? "Create Account" : "Sign In")}
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? "Please wait..." : (isSignUp ? "Create Account" : "Sign In")}
             </Button>
           </form>
 
-          <div className="text-center">
+          <div className="text-center pt-2">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setEmail("");
+                setPassword("");
+              }}
+              className="text-sm text-primary hover:underline"
             >
               {isSignUp 
                 ? "Already have an account? Sign in" 
-                : "Don't have an account? Sign up"
+                : "Need an account? Sign up"
               }
             </button>
           </div>
