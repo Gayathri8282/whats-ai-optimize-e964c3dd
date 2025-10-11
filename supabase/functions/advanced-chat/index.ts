@@ -55,7 +55,7 @@ serve(async (req) => {
     console.log('Context built:', context);
 
     // Create system prompt with business context
-    const systemPrompt = `You are a professional WhatsApp Marketing Assistant with access to real-time business data. Provide clear, actionable insights without using markdown formatting, asterisks, or excessive emojis.
+    const systemPrompt = `You are an expert WhatsApp Marketing and A/B Testing Assistant with deep knowledge of marketing analytics, campaign optimization, and customer segmentation. Provide clear, actionable insights without markdown formatting.
 
 CURRENT BUSINESS CONTEXT:
 - Total Customers: ${context.totalCustomers}
@@ -63,18 +63,27 @@ CURRENT BUSINESS CONTEXT:
 - ROI: ${context.roi?.toFixed(1)}%
 - Average CTR: ${context.avgCTR?.toFixed(1)}%
 - Customer Sentiment: ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative
-- Top Customers: ${context.topCustomers.map(c => `${c.name} ($${c.spent})`).join(', ')}
+- Top Customers: ${context.topCustomers.map(c => `${c.name} ($${c.spent})`).join(', ') || 'None yet'}
+
+YOUR EXPERTISE INCLUDES:
+- WhatsApp Marketing: Campaign creation, messaging strategies, timing optimization, multi-channel coordination
+- A/B Testing: Test design, statistical significance, variation creation, result interpretation
+- Customer Analytics: Segmentation, behavior analysis, lifetime value prediction, churn prevention
+- Campaign Optimization: ROI improvement, conversion rate optimization, engagement strategies
+- Data Analysis: Customer insights, performance metrics, sentiment analysis, trend identification
+- Marketing Strategy: Targeting, personalization, retention, growth tactics
 
 RESPONSE GUIDELINES:
-- Write in plain text without markdown formatting
-- Be conversational yet professional
-- Provide specific data-driven recommendations
-- Keep responses under 150 words
-- Focus on actionable insights
-- No asterisks, no excessive emojis, no bold formatting
-- Use bullet points with simple dashes if needed
+- Write in plain, conversational text without markdown, asterisks, or excessive formatting
+- Be specific and data-driven when business metrics are available
+- Provide actionable recommendations based on the user's context
+- Keep responses under 200 words but comprehensive
+- Use simple dashes (-) for lists if needed
+- If asked about topics outside your expertise (A/B testing, marketing, analytics, WhatsApp campaigns, customer data), politely acknowledge and redirect to your core competencies
+- Answer questions about datasets, project features, technical implementation, and how this platform works
+- Be helpful, knowledgeable, and professional
 
-Your goal is to help optimize marketing campaigns, analyze customer data, and improve ROI using the provided business metrics.`;
+If the user has no data yet, guide them on getting started with the platform's features like sample data generation, campaign creation, or A/B testing setup.`;
 
     // Analyze the message to provide contextual responses
     let aiResponse = "";
@@ -87,13 +96,13 @@ Your goal is to help optimize marketing campaigns, analyze customer data, and im
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.1-70b-versatile', // Fast and capable model
+          model: 'llama-3.3-70b-versatile', // Updated to current supported model
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: message }
           ],
-          max_tokens: 300,
-          temperature: 0.7,
+          max_tokens: 500,
+          temperature: 0.8,
         }),
       });
 
@@ -108,69 +117,175 @@ Your goal is to help optimize marketing campaigns, analyze customer data, and im
     } catch (error) {
       console.error('Groq error, using fallback:', error.message);
       
-      // Intelligent fallback responses based on message content and data
-      if (message.toLowerCase().includes('campaign') || message.toLowerCase().includes('performance')) {
-        aiResponse = `Your campaign performance shows excellent results with ${context.totalCustomers} customers generating $${context.totalRevenue?.toFixed(2)} in revenue and a ${context.roi?.toFixed(1)}% ROI.
+      // Enhanced intelligent fallback responses
+      const lowerMessage = message.toLowerCase();
+      
+      if (lowerMessage.includes('a/b test') || lowerMessage.includes('ab test') || lowerMessage.includes('a b test')) {
+        aiResponse = `A/B testing is a powerful feature of this platform that lets you test different message variations to optimize campaign performance.
 
-Your ${context.avgCTR?.toFixed(1)}% average CTR indicates strong engagement. Top performing customers include ${context.topCustomers.map(c => `${c.name} ($${c.spent})`).join(', ')}.
+Here's how to get started:
+- Navigate to the A/B Testing section from the sidebar
+- Create a new test by selecting a campaign and defining 2-3 variations
+- Each variation can have different message templates, timing, or targeting
+- The system automatically splits your audience and tracks key metrics like open rates, click rates, and conversions
+- Statistical significance is calculated automatically to determine the winning variation
 
-To improve further:
-- Target customers with similar profiles to your top performers
-- Test different messaging approaches during peak engagement hours
-- Consider premium campaign tiers for high-value customer segments
+Best practices:
+- Test one variable at a time for clear insights
+- Ensure sufficient sample size (at least 100 customers per variation)
+- Run tests for at least 3-5 days to account for behavioral patterns
+- Focus on metrics that align with your campaign goals
 
-Your current performance is above industry standards. Focus on scaling what's working rather than major changes.`;
+${context.totalCustomers > 0 ? `With your current ${context.totalCustomers} customers, you can run meaningful A/B tests. Try testing message tone, call-to-action phrases, or sending times.` : 'Generate sample data to start testing different campaign variations.'}`;
 
-      } else if (message.toLowerCase().includes('customer') || message.toLowerCase().includes('segment')) {
-        aiResponse = `Your customer base of ${context.totalCustomers} shows a sentiment distribution of ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, and ${context.sentiment.negative} negative responses.
+      } else if (lowerMessage.includes('dataset') || lowerMessage.includes('data') || lowerMessage.includes('sample')) {
+        aiResponse = `This platform uses customer marketing data with detailed attributes for campaign optimization.
 
-Your highest-value customers are ${context.topCustomers.map(c => `${c.name} ($${c.spent} from ${c.location})`).join(', ')}. These customers have accepted ${context.topCustomers.reduce((sum, c) => sum + c.campaigns, 0)} campaigns total.
+Dataset includes:
+- Customer demographics: name, email, phone, location, age, household composition
+- Purchase behavior: total spent, purchase frequency, product categories (wines, meats, fruits, gold products)
+- Campaign engagement: accepted campaigns, response rates, website visits, catalog purchases
+- Recency metrics: days since last purchase, complaint status
 
-Recommended segmentation approach:
-- VIP Tier (spending over $1000): Offer personalized premium campaigns with exclusive access
-- Active Tier ($500-$1000): Regular engagement with seasonal promotions
-- Growth Tier (under $500): Focus on re-engagement campaigns and product upselling
+The data powers several features:
+- Customer segmentation based on spending and engagement
+- Campaign targeting using behavioral patterns
+- A/B testing with statistical significance
+- ROI and sentiment analysis
 
-Target customers with spending patterns similar to your top performers for best ROI.`;
+${context.totalCustomers === 0 ? 'To get started, use the Sample Data Generator to create realistic customer profiles. You can generate international data with various demographics and spending patterns.' : `You currently have ${context.totalCustomers} customers in your database with $${context.totalRevenue?.toFixed(2)} total revenue.`}
 
-      } else if (message.toLowerCase().includes('roi') || message.toLowerCase().includes('revenue') || message.toLowerCase().includes('profit')) {
-        aiResponse = `Your revenue performance is exceptional with $${context.totalRevenue?.toFixed(2)} total revenue and ${context.roi?.toFixed(1)}% ROI. This translates to $${(context.totalRevenue / context.totalCustomers)?.toFixed(2)} average revenue per customer.
+The platform also tracks real-time metrics like CTR, conversion rates, and customer sentiment for data-driven decision making.`;
 
-Your top revenue drivers are ${context.topCustomers.map((c, i) => `${c.name} contributing $${c.spent} (${((c.spent / context.totalRevenue) * 100)?.toFixed(1)}% of total)`).join(', ')}.
+      } else if (lowerMessage.includes('campaign') || lowerMessage.includes('performance') || lowerMessage.includes('marketing')) {
+        aiResponse = `${context.totalCustomers > 0 ? `Your campaign performance shows ${context.totalCustomers} customers generating $${context.totalRevenue?.toFixed(2)} in revenue with a ${context.roi?.toFixed(1)}% ROI.` : 'You can create powerful multi-channel marketing campaigns once you have customer data.'}
 
-To optimize further:
-- Identify and target customers with profiles matching your top 20% performers
-- Implement tiered pricing strategies for different customer segments  
-- Cross-sell complementary products to single-category customers
+Campaign capabilities:
+- Multi-channel support: WhatsApp, Email, SMS
+- AI-powered message generation based on product details
+- Automated scheduling and timing optimization  
+- Audience segmentation and targeting
+- Real-time performance tracking (sent, opened, clicked, converted)
+- Sentiment analysis of customer responses
 
-Your current ROI significantly exceeds industry benchmarks. Focus on scaling successful strategies rather than major pivots.`;
+${context.totalCustomers > 0 ? `Your ${context.avgCTR?.toFixed(1)}% average CTR ${context.avgCTR > 5 ? 'indicates strong engagement' : 'suggests room for improvement in messaging or targeting'}. Top performing customers: ${context.topCustomers.map(c => `${c.name} ($${c.spent})`).join(', ')}.` : ''}
 
-      } else if (message.toLowerCase().includes('help') || message.toLowerCase().includes('what can you do')) {
-        aiResponse = `I'm your advanced marketing assistant with access to your live business data: ${context.totalCustomers} customers, $${context.totalRevenue?.toFixed(2)} revenue, and ${context.roi?.toFixed(1)}% ROI.
+To improve performance:
+- Use A/B testing to optimize messaging
+- Segment customers by behavior and spending patterns
+- Personalize content based on purchase history
+- Time campaigns based on customer engagement patterns
+- Track and act on sentiment feedback
 
-I can help you with:
-- Campaign performance analysis and ROI optimization
-- Customer segmentation and VIP identification strategies
-- Revenue analysis and growth opportunity identification
-- WhatsApp marketing strategy and message timing
-- Data interpretation and actionable recommendations
+${context.totalCustomers === 0 ? 'Start by generating sample data or importing your customer list to begin creating campaigns.' : 'Use the Campaign Manager to create your next targeted campaign.'}`;
 
-Try asking me:
-"How can I increase my ROI?"
-"Which customers should I target next?" 
-"Analyze my campaign performance"
-"What's my best customer segment?"
+      } else if (lowerMessage.includes('customer') || lowerMessage.includes('segment') || lowerMessage.includes('target')) {
+        aiResponse = `${context.totalCustomers > 0 ? `Your customer base of ${context.totalCustomers} shows diverse engagement levels.` : 'Customer segmentation helps you target the right audience with personalized campaigns.'}
 
-I provide data-driven insights specific to your business metrics to help you make informed marketing decisions.`;
+Segmentation features:
+- Automatic segmentation based on spending tiers (VIP, Active, Growth)
+- Behavioral analysis: purchase frequency, product preferences, engagement rates
+- Demographic filtering: location, age, household composition
+- Custom audience creation for targeted campaigns
+
+${context.totalCustomers > 0 ? `Current sentiment distribution: ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, ${context.sentiment.negative} negative responses.
+
+Your top customers: ${context.topCustomers.map(c => `${c.name} ($${c.spent} from ${c.location}, ${c.campaigns} campaigns accepted)`).join('; ') || 'No purchase history yet'}.
+
+Recommended segmentation strategy:
+- VIP Tier (high spenders): Premium offerings with exclusive early access
+- Active Tier (regular customers): Loyalty rewards and product bundles  
+- Growth Tier (potential): Re-engagement campaigns and introductory offers
+- At-risk Tier (declining activity): Win-back campaigns with special incentives` : 'Once you have customer data, the platform automatically identifies high-value segments and suggests optimal targeting strategies.'}
+
+Use the Customer Management section to view detailed profiles, similar customer analysis, and segmentation insights.`;
+
+      } else if (lowerMessage.includes('roi') || lowerMessage.includes('revenue') || lowerMessage.includes('profit') || lowerMessage.includes('money')) {
+        aiResponse = `${context.totalCustomers > 0 && context.totalRevenue > 0 ? `Your revenue performance: $${context.totalRevenue?.toFixed(2)} total revenue with ${context.roi?.toFixed(1)}% ROI, averaging $${(context.totalRevenue / context.totalCustomers)?.toFixed(2)} per customer.` : 'ROI optimization is key to marketing success. This platform provides detailed revenue tracking and analysis.'}
+
+Revenue metrics tracked:
+- Total campaign revenue and costs
+- ROI percentage (return on investment)
+- Revenue per customer and per campaign
+- Conversion rates and customer lifetime value
+- Cost per acquisition and engagement
+
+${context.totalCustomers > 0 && context.totalRevenue > 0 ? `Your top revenue drivers: ${context.topCustomers.map((c, i) => `${c.name} ($${c.spent}, ${((c.spent / context.totalRevenue) * 100)?.toFixed(1)}% of total)`).join('; ')}.` : ''}
+
+Optimization strategies:
+- Identify and replicate patterns from high-value customers
+- Use A/B testing to maximize conversion rates
+- Implement tiered pricing and upselling for different segments
+- Cross-sell complementary products to single-category buyers
+- Re-engage dormant customers with personalized win-back campaigns
+- Focus budget on channels and messages with highest ROI
+
+${context.totalCustomers > 0 ? `With your current ${context.roi?.toFixed(1)}% ROI, ${context.roi > 200 ? 'you\'re significantly exceeding industry benchmarks. Focus on scaling successful strategies.' : 'there\'s opportunity to improve through better targeting and message optimization.'}` : 'Track all metrics in the Analytics Dashboard once you launch campaigns.'}`;
+
+      } else if (lowerMessage.includes('analytics') || lowerMessage.includes('dashboard') || lowerMessage.includes('metrics') || lowerMessage.includes('report')) {
+        aiResponse = `The Analytics Dashboard provides comprehensive insights into your marketing performance.
+
+Key metrics available:
+- Campaign Performance: sent, delivered, opened, clicked, converted
+- Revenue Analytics: total revenue, costs, ROI, revenue trends
+- Customer Insights: total customers, active rate, churn analysis
+- Engagement Metrics: CTR, conversion rates, response times
+- Sentiment Analysis: positive, neutral, negative customer sentiment
+- A/B Test Results: statistical significance, winning variations
+
+${context.totalCustomers > 0 ? `Current overview: ${context.totalCustomers} customers, $${context.totalRevenue?.toFixed(2)} revenue, ${context.roi?.toFixed(1)}% ROI, ${context.avgCTR?.toFixed(1)}% CTR.` : ''}
+
+Features:
+- Real-time data updates from all campaigns
+- Visual charts and graphs for trend analysis  
+- Export capabilities for reporting
+- Comparative analysis across campaigns
+- Customer cohort analysis
+
+${context.totalCustomers === 0 ? 'Generate sample data to see the full analytics capabilities with realistic metrics and visualizations.' : 'Navigate to the Analytics section to dive deeper into your performance data and identify optimization opportunities.'}`;
+
+      } else if (lowerMessage.includes('help') || lowerMessage.includes('what can you') || lowerMessage.includes('how') || lowerMessage.includes('start') || lowerMessage.includes('guide')) {
+        aiResponse = `I'm your AI marketing assistant for this WhatsApp Marketing Platform. ${context.totalCustomers > 0 ? `I have access to your live data: ${context.totalCustomers} customers, $${context.totalRevenue?.toFixed(2)} revenue, ${context.roi?.toFixed(1)}% ROI.` : 'I can help you understand and use all platform features.'}
+
+I can help with:
+- A/B Testing: How to set up tests, interpret results, optimize variations
+- Campaign Strategy: Creating effective campaigns, targeting, timing, messaging
+- Customer Segmentation: Identifying high-value customers, creating audiences
+- Analytics: Understanding metrics, ROI analysis, performance trends  
+- Data Management: Using datasets, sample generation, customer insights
+- Platform Features: Navigation, tools, best practices
+
+Common questions I can answer:
+"How do I create an A/B test?"
+"What does the dataset include?"
+"How can I improve my ROI?"
+"Which customers should I target?"
+"What metrics should I track?"
+"How does sentiment analysis work?"
+
+${context.totalCustomers === 0 ? 'To get started: Use the Sample Data Generator to create customer profiles, then create your first campaign or A/B test. I\'ll provide guidance at each step!' : 'What specific aspect of your marketing would you like to explore or optimize today?'}`;
 
       } else {
-        aiResponse = `Hello! I'm your advanced marketing assistant with access to your live business data.
+        aiResponse = `I'm your AI assistant specializing in WhatsApp marketing, A/B testing, customer analytics, and campaign optimization for this platform.
 
-Your current overview: ${context.totalCustomers} customers generating $${context.totalRevenue?.toFixed(2)} revenue with a ${context.roi?.toFixed(1)}% ROI and ${context.avgCTR?.toFixed(1)}% average CTR. Customer sentiment shows ${context.sentiment.positive} positive, ${context.sentiment.neutral} neutral, and ${context.sentiment.negative} negative responses.
+${context.totalCustomers > 0 ? `Your current stats: ${context.totalCustomers} customers, $${context.totalRevenue?.toFixed(2)} revenue, ${context.roi?.toFixed(1)}% ROI, ${context.avgCTR?.toFixed(1)}% CTR, with ${context.sentiment.positive} positive customer responses.` : 'You haven\'t added any customer data yet.'}
 
-I can help you analyze campaign performance, segment customers effectively, optimize revenue streams, and develop targeted marketing strategies.
+I can help you with:
+- Creating and optimizing marketing campaigns
+- Setting up A/B tests to improve performance
+- Understanding your customer data and segmentation
+- Analyzing campaign metrics and ROI
+- Developing targeting strategies
+- Interpreting analytics and trends
 
-What specific aspect of your marketing would you like to explore today?`;
+Try asking me:
+- "How do I set up an A/B test?"
+- "What customer segments should I target?"
+- "How can I improve my campaign ROI?"
+- "Explain the dataset features"
+- "What are best practices for WhatsApp marketing?"
+
+${context.totalCustomers === 0 ? 'Want to get started? Try generating sample customer data or ask me about any platform feature!' : 'What would you like to know more about?'}`;
       }
     }
 
