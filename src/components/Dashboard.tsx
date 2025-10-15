@@ -29,6 +29,7 @@ import {
   Brain,
 } from "lucide-react";
 import heroImage from "@/assets/hero-dashboard.jpg";
+import { useCustomerCount } from "@/hooks/useCustomerCount";
 
 // Mock data for charts
 const campaignData = [
@@ -54,6 +55,8 @@ const abTestData = [
 ];
 
 export function Dashboard() {
+  const { count: customerCount, isLoading: isLoadingCount } = useCustomerCount();
+  
   return (
     <div className="space-y-6">
       {/* Hero Section */}
@@ -105,14 +108,18 @@ export function Dashboard() {
 
         <Card className="shadow-card hover:shadow-elegant transition-smooth">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Messages Sent</CardTitle>
-            <MessageSquare className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
+            <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1.2M</div>
+            {isLoadingCount ? (
+              <div className="text-2xl font-bold">...</div>
+            ) : (
+              <div className="text-2xl font-bold">{customerCount.toLocaleString()}</div>
+            )}
             <div className="flex items-center text-xs text-muted-foreground">
               <ArrowUpRight className="h-3 w-3 text-success mr-1" />
-              +8.4% this week
+              Live customer count
             </div>
           </CardContent>
         </Card>

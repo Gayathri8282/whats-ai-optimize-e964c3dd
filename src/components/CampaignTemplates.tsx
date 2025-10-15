@@ -237,16 +237,32 @@ export function CampaignTemplates() {
     }
   };
 
-  const replaceVariables = (text: string): string => {
+  const replaceVariables = (text: string, customer?: Customer): string => {
     let result = text;
+    
+    // First replace global variable values (like discount, promo_code, etc.)
     Object.entries(variableValues).forEach(([variable, value]) => {
       result = result.replace(new RegExp(`\\{\\{${variable}\\}\\}`, 'g'), value || `{{${variable}}}`);
     });
+    
+    // Then replace customer-specific placeholders if customer provided
+    if (customer) {
+      result = result
+        .replace(/\{\{customer_name\}\}/g, customer.full_name)
+        .replace(/\{\{name\}\}/g, customer.full_name)
+        .replace(/\{\{location\}\}/g, customer.location)
+        .replace(/\{\{city\}\}/g, customer.location.split(',')[0]?.trim() || customer.location)
+        .replace(/\{\{country\}\}/g, customer.location.split(',')[1]?.trim() || 'your area')
+        .replace(/\{\{email\}\}/g, customer.email)
+        .replace(/\{\{phone\}\}/g, customer.phone)
+        .replace(/\{\{total_spent\}\}/g, `$${customer.total_spent.toFixed(2)}`);
+    }
+    
     return result;
   };
 
   const handleCopyTemplate = () => {
-    const finalContent = replaceVariables(editedContent);
+    const finalContent = replaceVariables(editedContent); // No customer, uses global vars only
     navigator.clipboard.writeText(finalContent);
     toast({
       title: "Template Copied!",
@@ -331,51 +347,71 @@ export function CampaignTemplates() {
       return;
     }
 
-    const finalSubject = replaceVariables(editedSubject);
-    const finalContent = replaceVariables(editedContent);
-
-    // WhatsApp URL-based sending (no API calls)
+    // WhatsApp URL-based sending with personalization
     if (selectedChannel === 'whatsapp') {
       try {
         setIsSending(true);
         
         const results = {
           total: eligibleCustomers.length,
-          sent: eligibleCustomers.length,
+          sent: 0,
           failed: 0,
           optedOut: 0,
-          details: eligibleCustomers.map(customer => ({
-            customer: customer.full_name,
-            phone: customer.phone,
-            status: 'sent'
-          }))
+          details: [] as any[]
         };
 
-        // Open WhatsApp URLs for each customer with delay
+        // Open WhatsApp URLs for each customer with personalized message and delay
         eligibleCustomers.forEach((customer, index) => {
           setTimeout(() => {
-            // Clean phone number (remove + if present)
-            const phone = customer.phone.startsWith('+') ? customer.phone.slice(1) : customer.phone;
-            
-            // Create WhatsApp deep link URL
-            const encodedMessage = encodeURIComponent(finalContent);
-            const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
-            
-            console.log(`Opening WhatsApp for ${customer.full_name}: ${whatsappUrl}`);
-            
-            // Open in new tab/window
-            const newWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-            
-            // Fallback for popup blockers
-            if (!newWindow || newWindow.closed) {
-              // Create a temporary link and click it
-              const link = document.createElement('a');
-              link.href = whatsappUrl;
-              link.target = '_blank';
-              link.rel = 'noopener noreferrer';
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
+            try {
+              // Personalize message for THIS specific customer
+              const personalizedContent = replaceVariables(editedContent, customer);
+              const personalizedSubject = replaceVariables(editedSubject, customer);
+              
+              // Format phone number for WhatsApp (remove + and spaces)
+              let phone = customer.phone.replace(/\s+/g, '').replace(/[^\d+]/g, '');
+              if (phone.startsWith('+')) {
+                phone = phone.slice(1);
+              }
+              // If US number without country code, add 1
+              if (phone.length === 10 && !phone.startsWith('1')) {
+                phone = '1' + phone;
+              }
+              
+              // Create WhatsApp deep link URL with personalized message
+              const encodedMessage = encodeURIComponent(personalizedContent);
+              const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
+              
+              console.log(`Opening personalized WhatsApp for ${customer.full_name} (${phone})`);
+              
+              // Open in new tab/window
+              const newWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+              
+              // Fallback for popup blockers
+              if (!newWindow || newWindow.closed) {
+                const link = document.createElement('a');
+                link.href = whatsappUrl;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }
+              
+              results.sent++;
+              results.details.push({
+                customer: customer.full_name,
+                phone: customer.phone,
+                status: 'sent'
+              });
+            } catch (err) {
+              console.error(`Failed to open WhatsApp for ${customer.full_name}:`, err);
+              results.failed++;
+              results.details.push({
+                customer: customer.full_name,
+                phone: customer.phone,
+                status: 'failed'
+              });
             }
           }, index * 800); // 800ms delay between each URL
         });
@@ -417,12 +453,16 @@ export function CampaignTemplates() {
 
       console.log('User authenticated:', user.id);
 
+      // For email, we still use base template - edge function will personalize per customer
+      const baseContent = replaceVariables(editedContent); // Global vars only
+      const baseSubject = replaceVariables(editedSubject); // Global vars only
+
       // Prepare the request
       const sendRequest = {
         userId: user.id,
         campaignName: selectedTemplate.name,
-        messageTemplate: finalContent,
-        subject: finalSubject,
+        messageTemplate: baseContent,
+        subject: baseSubject,
         customerIds: selectAllCustomers ? undefined : selectedCustomers,
         sendToAll: selectAllCustomers
       };
