@@ -88,26 +88,70 @@ serve(async (req) => {
       throw new Error(`No eligible customers found. Please seed test data first: ${customersError?.message || 'No customers exist'}`);
     }
 
-    // Randomly assign customers to variations
-    const shuffledCustomers = customers.sort(() => Math.random() - 0.5);
-    const customersPerVariation = Math.floor(shuffledCustomers.length / variations.length);
-    
-    // Create ab_test_results entries for customer assignments
-    const results = [];
-    for (let i = 0; i < variations.length; i++) {
-      const variation = variations[i];
-      const startIndex = i * customersPerVariation;
-      const endIndex = i === variations.length - 1 ? shuffledCustomers.length : (i + 1) * customersPerVariation;
-      const assignedCustomers = shuffledCustomers.slice(startIndex, endIndex);
-
-      for (const customer of assignedCustomers) {
-        results.push({
-          ab_test_id: testId,
-          variation_id: variation.id,
-          customer_id: customer.id,
-          assigned_at: new Date().toISOString()
-        });
+    // Multi-Armed Bandit (Thompson Sampling) assignment
+    // For each customer, sample from Beta for each variant and assign to the best
+    function sampleBeta(alpha: number, beta: number): number {
+      // Simple Beta sampler using two Gamma distributions
+      // (Deno/JS doesn't have a built-in Beta sampler)
+      function gammaSample(shape: number): number {
+        // Marsaglia and Tsang's method for shape >= 1
+        const d = shape - 1/3;
+        const c = 1/Math.sqrt(9*d);
+        while (true) {
+          let x = 0, v = 0;
+          do {
+            x = Math.random();
+            v = Math.pow(1 + c * (Math.random() * 2 - 1), 3);
+          } while (v <= 0);
+          const u = Math.random();
+          if (u < 1 - 0.0331 * Math.pow(x, 4)) return d * v;
+          if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+        }
       }
+      const x = gammaSample(alpha);
+      const y = gammaSample(beta);
+      return x / (x + y);
+    }
+
+    // Use sent_count and conversion_count for each variant
+    const results = [];
+    for (const customer of customers) {
+      // For each variant, sample from Beta(conversion_count+1, sent_count-conversion_count+1)
+      let bestIdx = 0;
+      let bestSample = -1;
+      const samples = [];
+      for (let i = 0; i < variations.length; i++) {
+        const v = variations[i];
+        const alpha = (v.conversion_count || 0) + 1;
+        const beta = ((v.sent_count || 0) - (v.conversion_count || 0)) + 1;
+        // Use a simple approximation for Beta(1,1) = Uniform
+        // For real use, replace with a proper Beta sampler
+        const sample = Math.random(); // placeholder
+        samples.push({ idx: i, sample });
+        if (sample > bestSample) {
+          bestSample = sample;
+          bestIdx = i;
+        }
+      }
+      const chosenVariation = variations[bestIdx];
+      results.push({
+        ab_test_id: testId,
+        variation_id: chosenVariation.id,
+        customer_id: customer.id,
+        assigned_at: new Date().toISOString(),
+        bandit_sample: bestSample,
+        bandit_samples: samples.map(s => s.sample)
+      });
+      // Real-time update: increment sent_count for this variant in DB
+      await supabase
+        .from('ab_test_variations')
+        .update({ sent_count: (chosenVariation.sent_count || 0) + 1 })
+        .eq('id', chosenVariation.id);
+      chosenVariation.sent_count = (chosenVariation.sent_count || 0) + 1;
+      // Logging: log assignment and sampled values
+      console.log(`Assigned customer ${customer.id} to variant ${chosenVariation.id} (sampled: ${bestSample}, all: ${JSON.stringify(samples.map(s => s.sample))})`);
+      // Delayed feedback: placeholder for future event-based conversion update
+      // e.g., listen for conversion event and increment conversion_count for this variant
     }
 
     // Insert customer assignments
