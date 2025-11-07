@@ -18,6 +18,8 @@ export type Database = {
         Row: {
           ab_test_id: string
           assigned_at: string
+          bandit_sample: number | null
+          bandit_samples: Json | null
           clicked: boolean | null
           clicked_at: string | null
           converted: boolean | null
@@ -38,6 +40,8 @@ export type Database = {
         Insert: {
           ab_test_id: string
           assigned_at?: string
+          bandit_sample?: number | null
+          bandit_samples?: Json | null
           clicked?: boolean | null
           clicked_at?: string | null
           converted?: boolean | null
@@ -58,6 +62,8 @@ export type Database = {
         Update: {
           ab_test_id?: string
           assigned_at?: string
+          bandit_sample?: number | null
+          bandit_samples?: Json | null
           clicked?: boolean | null
           clicked_at?: string | null
           converted?: boolean | null
@@ -587,10 +593,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      compute_campaign_analytics: {
-        Args: { user_uuid: string }
-        Returns: Json
-      }
+      compute_campaign_analytics: { Args: { user_uuid: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
