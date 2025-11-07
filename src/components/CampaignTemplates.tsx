@@ -347,96 +347,65 @@ export function CampaignTemplates() {
       return;
     }
 
-    // WhatsApp URL-based sending with personalization
+    // Send WhatsApp messages via backend edge function
     if (selectedChannel === 'whatsapp') {
       try {
         setIsSending(true);
         
-        const results = {
-          total: eligibleCustomers.length,
-          sent: 0,
-          failed: 0,
-          optedOut: 0,
-          details: [] as any[]
-        };
-
-        // Open WhatsApp URLs for each customer with personalized message and delay
-        eligibleCustomers.forEach((customer, index) => {
-          setTimeout(() => {
-            try {
-              // Personalize message for THIS specific customer
-              const personalizedContent = replaceVariables(editedContent, customer);
-              const personalizedSubject = replaceVariables(editedSubject, customer);
-              
-              // Format phone number for WhatsApp (remove + and spaces)
-              let phone = customer.phone.replace(/\s+/g, '').replace(/[^\d+]/g, '');
-              if (phone.startsWith('+')) {
-                phone = phone.slice(1);
-              }
-              // If US number without country code, add 1
-              if (phone.length === 10 && !phone.startsWith('1')) {
-                phone = '1' + phone;
-              }
-              
-              // Create WhatsApp deep link URL with personalized message
-              const encodedMessage = encodeURIComponent(personalizedContent);
-              const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
-              
-              console.log(`Opening personalized WhatsApp for ${customer.full_name} (${phone})`);
-              
-              // Open in new tab/window
-              const newWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-              
-              // Fallback for popup blockers
-              if (!newWindow || newWindow.closed) {
-                const link = document.createElement('a');
-                link.href = whatsappUrl;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-              }
-              
-              results.sent++;
-              results.details.push({
-                customer: customer.full_name,
-                phone: customer.phone,
-                status: 'sent'
-              });
-            } catch (err) {
-              console.error(`Failed to open WhatsApp for ${customer.full_name}:`, err);
-              results.failed++;
-              results.details.push({
-                customer: customer.full_name,
-                phone: customer.phone,
-                status: 'failed'
-              });
-            }
-          }, index * 800); // 800ms delay between each URL
-        });
-
-        // Show results immediately (since we're not waiting for API responses)
-        setSendResults(results);
-        setShowResults(true);
+        const { data: { user } } = await supabase.auth.getUser();
         
-        toast({
-          title: "WhatsApp Links Opening! 📱",
-          description: `Opening ${eligibleCustomers.length} WhatsApp conversations. Check your browser for new tabs.`,
+        if (!user) {
+          toast({
+            title: "Authentication Required",
+            description: "Please sign in to send campaigns",
+            variant: "destructive"
+          });
+          setIsSending(false);
+          return;
+        }
+
+        // Get the personalized message template
+        const finalMessage = replaceVariables(editedContent);
+        
+        // Call the send-whatsapp edge function
+        const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+          body: {
+            userId: user.id,
+            campaignName: selectedTemplate?.name || 'Template Campaign',
+            messageTemplate: finalMessage,
+            customerIds: eligibleCustomers.map(c => c.id),
+            sendToAll: false
+          }
         });
 
-      } catch (error) {
-        console.error('WhatsApp URL opening error:', error);
+        if (error) throw error;
+
+        setIsSending(false);
+
+        if (data?.success) {
+          toast({
+            title: "WhatsApp Campaign Sent!",
+            description: `Successfully sent to ${data.results.sent} customers. Failed: ${data.results.failed}${data.results.optedOut > 0 ? `, Opted out: ${data.results.optedOut}` : ''}`,
+          });
+          
+          console.log('Campaign results:', data.results);
+          setSendResults(data.results);
+          setShowResults(true);
+        } else {
+          toast({
+            title: "Campaign Failed",
+            description: data?.error || "Failed to send WhatsApp campaign",
+            variant: "destructive"
+          });
+        }
+      } catch (err) {
+        console.error('WhatsApp campaign error:', err);
+        setIsSending(false);
         toast({
-          title: "WhatsApp Opening Failed",
-          description: "Failed to open WhatsApp URLs. Please check your browser's popup settings.",
+          title: "Error Sending Campaign",
+          description: err instanceof Error ? err.message : "Failed to send WhatsApp messages",
           variant: "destructive"
         });
-      } finally {
-        // Set a delay before re-enabling the button
-        setTimeout(() => {
-          setIsSending(false);
-        }, 2000);
       }
       return;
     }
