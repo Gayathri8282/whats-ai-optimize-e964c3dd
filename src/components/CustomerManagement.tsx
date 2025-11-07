@@ -251,7 +251,7 @@ export function CustomerManagement() {
                         ? `${customer.city}, ${getCountryByCode(customer.country)?.name || customer.country}`
                         : customer.location}
                     </TableCell>
-                    <TableCell className="font-medium">${customer.total_spent.toFixed(2)}</TableCell>
+                    <TableCell className="font-medium">${(customer.total_spent || 0).toFixed(2)}</TableCell>
                     <TableCell>{customer.total_purchases}</TableCell>
                     <TableCell>
                       <Badge variant={getEngagementLevel(customer) === 'High' ? 'default' : 
@@ -301,7 +301,7 @@ export function CustomerManagement() {
                                       <h4 className="font-semibold mb-2">Financial Profile</h4>
                                       <div className="space-y-1 text-sm">
                                         <p><strong>Income:</strong> ${selectedCustomer.income?.toLocaleString()}</p>
-                                        <p><strong>Total Spent:</strong> ${selectedCustomer.total_spent.toFixed(2)}</p>
+                                         <p><strong>Total Spent:</strong> ${(selectedCustomer.total_spent || 0).toFixed(2)}</p>
                                         <p><strong>Recency:</strong> {selectedCustomer.recency} days</p>
                                       </div>
                                     </div>
@@ -339,10 +339,10 @@ export function CustomerManagement() {
                                     <div className="space-y-2">
                                       {similarCustomers.slice(0, 3).map((similar) => (
                                         <div key={similar.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                                          <div className="text-sm">
-                                            <span className="font-medium">{similar.full_name}</span>
-                                            <span className="text-muted-foreground ml-2">${similar.total_spent.toFixed(2)}</span>
-                                          </div>
+                                           <div className="text-sm">
+                                             <span className="font-medium">{similar.full_name}</span>
+                                             <span className="text-muted-foreground ml-2">${(similar.total_spent || 0).toFixed(2)}</span>
+                                           </div>
                                           <Badge variant="outline" className="text-xs">
                                             {getCustomerSegment(similar)}
                                           </Badge>
@@ -459,7 +459,7 @@ export function CustomerManagement() {
                                 ? `${customer.city}, ${getCountryByCode(customer.country)?.name || customer.country}`
                                 : customer.location}
                             </TableCell>
-                            <TableCell className="font-medium">${customer.total_spent.toFixed(2)}</TableCell>
+                            <TableCell className="font-medium">${(customer.total_spent || 0).toFixed(2)}</TableCell>
                             <TableCell>{customer.total_purchases}</TableCell>
                             <TableCell>
                               <Badge variant={getEngagementLevel(customer) === 'High' ? 'default' : 
@@ -512,7 +512,7 @@ export function CustomerManagement() {
                                               <h4 className="font-semibold mb-2">Financial Profile</h4>
                                               <div className="space-y-1 text-sm">
                                                 <p><strong>Income:</strong> ${selectedCustomer.income?.toLocaleString()}</p>
-                                                <p><strong>Total Spent:</strong> ${selectedCustomer.total_spent.toFixed(2)}</p>
+                                                <p><strong>Total Spent:</strong> ${(selectedCustomer.total_spent || 0).toFixed(2)}</p>
                                                 <p><strong>Recency:</strong> {selectedCustomer.recency} days</p>
                                               </div>
                                             </div>
