@@ -100,36 +100,49 @@ export function useCustomers(limit: number = 50) {
   const calculateSegments = (customerData: Customer[]): CustomerSegment[] => {
     const totalCustomers = customerData.length;
     
-    // Segment by spending tiers
-    const highValue = customerData.filter(c => c.total_spent > 1000);
-    const mediumValue = customerData.filter(c => c.total_spent > 500 && c.total_spent <= 1000);
-    const lowValue = customerData.filter(c => c.total_spent <= 500);
+    // Filter out customers with null/undefined values for calculations
+    const validCustomers = customerData.filter(c => 
+      c.total_spent != null && 
+      c.campaigns_accepted != null
+    );
     
-    // Segment by engagement (campaigns accepted)
-    const engaged = customerData.filter(c => c.campaigns_accepted >= 3);
-    const moderateEngaged = customerData.filter(c => c.campaigns_accepted >= 1 && c.campaigns_accepted < 3);
-    const disengaged = customerData.filter(c => c.campaigns_accepted === 0);
+    // Segment by spending tiers
+    const highValue = validCustomers.filter(c => c.total_spent > 1000);
+    const mediumValue = validCustomers.filter(c => c.total_spent > 500 && c.total_spent <= 1000);
+    const lowValue = validCustomers.filter(c => c.total_spent <= 500);
+    
+    const calculateAvgSpending = (segment: Customer[]) => {
+      if (segment.length === 0) return 0;
+      const total = segment.reduce((sum, c) => sum + (c.total_spent || 0), 0);
+      return total / segment.length;
+    };
+    
+    const calculateEngagementRate = (segment: Customer[]) => {
+      if (segment.length === 0) return 0;
+      const engaged = segment.filter(c => (c.campaigns_accepted || 0) > 0).length;
+      return (engaged / segment.length) * 100;
+    };
 
     return [
       {
         segment: "High Value Customers",
         count: highValue.length,
-        avg_spending: highValue.reduce((sum, c) => sum + c.total_spent, 0) / Math.max(highValue.length, 1),
-        engagement_rate: (highValue.filter(c => c.campaigns_accepted > 0).length / Math.max(highValue.length, 1)) * 100,
-        growth_rate: Math.random() * 20 - 5 // Simulate growth rate
+        avg_spending: calculateAvgSpending(highValue),
+        engagement_rate: calculateEngagementRate(highValue),
+        growth_rate: Math.random() * 20 - 5
       },
       {
         segment: "Medium Value Customers",
         count: mediumValue.length,
-        avg_spending: mediumValue.reduce((sum, c) => sum + c.total_spent, 0) / Math.max(mediumValue.length, 1),
-        engagement_rate: (mediumValue.filter(c => c.campaigns_accepted > 0).length / Math.max(mediumValue.length, 1)) * 100,
+        avg_spending: calculateAvgSpending(mediumValue),
+        engagement_rate: calculateEngagementRate(mediumValue),
         growth_rate: Math.random() * 15 - 3
       },
       {
         segment: "New/Low Value Customers",
         count: lowValue.length,
-        avg_spending: lowValue.reduce((sum, c) => sum + c.total_spent, 0) / Math.max(lowValue.length, 1),
-        engagement_rate: (lowValue.filter(c => c.campaigns_accepted > 0).length / Math.max(lowValue.length, 1)) * 100,
+        avg_spending: calculateAvgSpending(lowValue),
+        engagement_rate: calculateEngagementRate(lowValue),
         growth_rate: Math.random() * 25 - 10
       }
     ];

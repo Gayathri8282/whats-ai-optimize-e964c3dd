@@ -170,12 +170,12 @@ export function CustomerManagement() {
                   <p className="text-sm text-muted-foreground">{segment.segment}</p>
                   <p className="text-2xl font-bold">{segment.count}</p>
                   <p className="text-xs text-muted-foreground">
-                    Avg: ${segment.avg_spending.toFixed(0)}
+                    Avg: ${(segment.avg_spending || 0).toFixed(0)}
                   </p>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-medium text-success">
-                    {segment.engagement_rate.toFixed(1)}%
+                    {(segment.engagement_rate || 0).toFixed(1)}%
                   </div>
                   <div className="text-xs text-muted-foreground">Engagement</div>
                 </div>
