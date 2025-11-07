@@ -28,9 +28,11 @@ import { CustomerForm } from "@/components/CustomerForm";
 import { InternationalSampleGenerator } from "@/components/InternationalSampleGenerator";
 import { useToast } from "@/hooks/use-toast";
 import { getCountryByCode } from "@/utils/countries";
+import { useCustomerCount } from "@/hooks/useCustomerCount";
 
 export function CustomerManagement() {
   const { customers, segments, isLoading, findSimilarCustomers, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
+  const { count: totalCustomerCount } = useCustomerCount();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [similarCustomers, setSimilarCustomers] = useState<Customer[]>([]);
@@ -155,7 +157,8 @@ export function CustomerManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Customers</p>
-                <p className="text-2xl font-bold">{customers.length}</p>
+                <p className="text-2xl font-bold">{totalCustomerCount}</p>
+                <p className="text-xs text-success">Real-time count</p>
               </div>
               <Users className="w-8 h-8 text-primary" />
             </div>
