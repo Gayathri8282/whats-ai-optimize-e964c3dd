@@ -349,6 +349,11 @@ export function CampaignTemplates() {
 
     // Send WhatsApp messages via URL-based integration
     if (selectedChannel === 'whatsapp') {
+      console.log('=== WhatsApp URL-based sending started ===');
+      console.log('Selected channel:', selectedChannel);
+      console.log('Eligible customers count:', eligibleCustomers.length);
+      console.log('First customer sample:', eligibleCustomers[0]);
+      
       try {
         setIsSending(true);
         
@@ -357,7 +362,10 @@ export function CampaignTemplates() {
         const details: any[] = [];
 
         for (const customer of eligibleCustomers) {
+          console.log(`Processing customer: ${customer.full_name}, Phone: ${customer.phone}`);
+          
           if (!customer.phone) {
+            console.warn(`No phone for ${customer.full_name}`);
             failedCount++;
             details.push({
               customer: customer.full_name,
@@ -370,15 +378,21 @@ export function CampaignTemplates() {
 
           // Personalize message for each customer
           const personalizedMessage = replaceVariables(editedContent, customer);
+          console.log(`Personalized message for ${customer.full_name}:`, personalizedMessage.substring(0, 50) + '...');
 
           // Clean phone number (remove all non-digits)
           const cleanPhone = customer.phone.replace(/\D/g, '');
+          console.log(`Clean phone: ${cleanPhone}`);
           
           // Create WhatsApp URL
           const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(personalizedMessage)}`;
+          console.log(`WhatsApp URL created:`, whatsappUrl.substring(0, 100) + '...');
           
           // Open WhatsApp in new tab
-          window.open(whatsappUrl, '_blank');
+          console.log('Attempting to open window...');
+          const openedWindow = window.open(whatsappUrl, '_blank');
+          console.log('Window open result:', openedWindow ? 'SUCCESS' : 'BLOCKED (popup blocker)');
+          
           successCount++;
           
           details.push({
@@ -391,6 +405,10 @@ export function CampaignTemplates() {
           // Small delay between opens to prevent browser blocking
           await new Promise(resolve => setTimeout(resolve, 300));
         }
+        
+        console.log('=== WhatsApp sending completed ===');
+        console.log('Success count:', successCount);
+        console.log('Failed count:', failedCount);
 
         const results = {
           total: eligibleCustomers.length,
