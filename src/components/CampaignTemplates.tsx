@@ -347,63 +347,74 @@ export function CampaignTemplates() {
       return;
     }
 
-    // Send WhatsApp messages via backend edge function
+    // Send WhatsApp messages via URL-based integration
     if (selectedChannel === 'whatsapp') {
       try {
         setIsSending(true);
         
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          toast({
-            title: "Authentication Required",
-            description: "Please sign in to send campaigns",
-            variant: "destructive"
-          });
-          setIsSending(false);
-          return;
-        }
+        let successCount = 0;
+        let failedCount = 0;
+        const details: any[] = [];
 
-        // Get the personalized message template
-        const finalMessage = replaceVariables(editedContent);
-        
-        // Call the send-whatsapp edge function
-        const { data, error } = await supabase.functions.invoke('send-whatsapp', {
-          body: {
-            userId: user.id,
-            campaignName: selectedTemplate?.name || 'Template Campaign',
-            messageTemplate: finalMessage,
-            customerIds: eligibleCustomers.map(c => c.id),
-            sendToAll: false
+        for (const customer of eligibleCustomers) {
+          if (!customer.phone) {
+            failedCount++;
+            details.push({
+              customer: customer.full_name,
+              phone: 'N/A',
+              status: 'failed',
+              error: 'No phone number'
+            });
+            continue;
           }
-        });
 
-        if (error) throw error;
+          // Personalize message for each customer
+          const personalizedMessage = replaceVariables(editedContent, customer);
 
-        setIsSending(false);
-
-        if (data?.success) {
-          toast({
-            title: "WhatsApp Campaign Sent!",
-            description: `Successfully sent to ${data.results.sent} customers. Failed: ${data.results.failed}${data.results.optedOut > 0 ? `, Opted out: ${data.results.optedOut}` : ''}`,
+          // Clean phone number (remove all non-digits)
+          const cleanPhone = customer.phone.replace(/\D/g, '');
+          
+          // Create WhatsApp URL
+          const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(personalizedMessage)}`;
+          
+          // Open WhatsApp in new tab
+          window.open(whatsappUrl, '_blank');
+          successCount++;
+          
+          details.push({
+            customer: customer.full_name,
+            phone: customer.phone,
+            status: 'opened',
+            url: whatsappUrl
           });
           
-          console.log('Campaign results:', data.results);
-          setSendResults(data.results);
-          setShowResults(true);
-        } else {
-          toast({
-            title: "Campaign Failed",
-            description: data?.error || "Failed to send WhatsApp campaign",
-            variant: "destructive"
-          });
+          // Small delay between opens to prevent browser blocking
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
+
+        const results = {
+          total: eligibleCustomers.length,
+          sent: successCount,
+          failed: failedCount,
+          optedOut: 0,
+          details
+        };
+
+        setSendResults(results);
+        setShowResults(true);
+        setIsSending(false);
+
+        toast({
+          title: "WhatsApp Links Opened!",
+          description: `Opened WhatsApp for ${successCount} customers${failedCount > 0 ? `. Failed: ${failedCount}` : ''}`,
+        });
+        
       } catch (err) {
         console.error('WhatsApp campaign error:', err);
         setIsSending(false);
         toast({
-          title: "Error Sending Campaign",
-          description: err instanceof Error ? err.message : "Failed to send WhatsApp messages",
+          title: "Error Opening WhatsApp",
+          description: err instanceof Error ? err.message : "Failed to open WhatsApp",
           variant: "destructive"
         });
       }
