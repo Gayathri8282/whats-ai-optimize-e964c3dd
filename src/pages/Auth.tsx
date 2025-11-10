@@ -10,6 +10,7 @@ import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -34,6 +35,44 @@ export default function Auth() {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Check your email",
+        description: "We've sent you a password reset link",
+        variant: "default"
+      });
+      setIsForgotPassword(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send reset email",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,17 +157,19 @@ export default function Auth() {
       <Card className="w-full max-w-md shadow-card">
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-2xl font-bold">
-            {isSignUp ? "Create Account" : "Sign In"}
+            {isForgotPassword ? "Reset Password" : (isSignUp ? "Create Account" : "Sign In")}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            {isSignUp 
-              ? "Enter your email and password to get started" 
-              : "Enter your email and password to continue"
+            {isForgotPassword 
+              ? "Enter your email to receive a password reset link"
+              : (isSignUp 
+                ? "Enter your email and password to get started" 
+                : "Enter your email and password to continue")
             }
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          <form onSubmit={handleEmailAuth} className="space-y-4">
+          <form onSubmit={isForgotPassword ? handleForgotPassword : handleEmailAuth} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -142,28 +183,44 @@ export default function Auth() {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete={isSignUp ? "new-password" : "current-password"}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                {showPassword ? "Hide" : "Show"} password
-              </button>
-            </div>
+            {!isForgotPassword && (
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
+                />
+                <div className="flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? "Hide" : "Show"} password
+                  </button>
+                  {!isSignUp && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPassword(true);
+                        setPassword("");
+                      }}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-              {isLoading ? "Please wait..." : (isSignUp ? "Create Account" : "Sign In")}
+              {isLoading ? "Please wait..." : (isForgotPassword ? "Send Reset Link" : (isSignUp ? "Create Account" : "Sign In"))}
             </Button>
           </form>
 
@@ -171,15 +228,22 @@ export default function Auth() {
             <button
               type="button"
               onClick={() => {
-                setIsSignUp(!isSignUp);
-                setEmail("");
-                setPassword("");
+                if (isForgotPassword) {
+                  setIsForgotPassword(false);
+                  setEmail("");
+                } else {
+                  setIsSignUp(!isSignUp);
+                  setEmail("");
+                  setPassword("");
+                }
               }}
               className="text-sm text-primary hover:underline"
             >
-              {isSignUp 
-                ? "Already have an account? Sign in" 
-                : "Need an account? Sign up"
+              {isForgotPassword 
+                ? "Back to sign in"
+                : (isSignUp 
+                  ? "Already have an account? Sign in" 
+                  : "Need an account? Sign up")
               }
             </button>
           </div>
