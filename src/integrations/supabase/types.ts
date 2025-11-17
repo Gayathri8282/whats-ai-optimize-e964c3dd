@@ -414,6 +414,7 @@ export type Database = {
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
+          variation_id: string | null
         }
         Insert: {
           button_id: string
@@ -426,6 +427,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          variation_id?: string | null
         }
         Update: {
           button_id?: string
@@ -438,6 +440,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          variation_id?: string | null
         }
         Relationships: []
       }
@@ -598,6 +601,7 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
+          variation_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -611,6 +615,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          variation_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -624,6 +629,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          variation_id?: string | null
         }
         Relationships: []
       }
@@ -675,6 +681,7 @@ export type Database = {
     }
     Functions: {
       compute_campaign_analytics: { Args: { user_uuid: string }; Returns: Json }
+      update_realtime_ab_testing: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
