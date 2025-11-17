@@ -194,37 +194,37 @@ export function ABTesting() {
 
   const fetchABTests = async () => {
     try {
-      // First fetch A/B tests
+      // Fetch all A/B tests without campaign filter
       const { data: testsData, error: testsError } = await supabase
-        .from('ab_tests')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("ab_tests")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (testsError) throw testsError;
 
-      // Then fetch related data separately
-      const formattedTests: ABTest[] = [];
-      
-      for (const test of testsData || []) {
-        // Fetch campaign
-        const { data: campaignData } = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('id', test.campaign_id)
-          .single();
+      // Fetch campaigns and variations for all tests in parallel
+      const formattedTests: ABTest[] = await Promise.all(
+        (testsData || []).map(async (test) => {
+          // Fetch campaign and variations in parallel for each test
+          const [campaignResult, variationsResult] = await Promise.all([
+            supabase
+              .from('campaigns')
+              .select('*')
+              .eq('id', test.campaign_id)
+              .single(),
+            supabase
+              .from('ab_test_variations')
+              .select('*')
+              .eq('ab_test_id', test.id)
+          ]);
 
-        // Fetch variations
-        const { data: variationsData } = await supabase
-          .from('ab_test_variations')
-          .select('*')
-          .eq('ab_test_id', test.id);
-
-        formattedTests.push({
-          ...test,
-          campaign: campaignData,
-          variations: variationsData || []
-        });
-      }
+          return {
+            ...test,
+            campaign: campaignResult.data,
+            variations: variationsResult.data || []
+          };
+        })
+      );
 
       setAbTests(formattedTests);
       if (formattedTests.length > 0 && !selectedTest) {
