@@ -11,17 +11,78 @@ const groqApiKey = Deno.env.get('GROQ_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Input validation
+interface ChatRequest {
+  message: string;
+}
+
+function validateInput(body: any): { valid: boolean; error?: string; data?: ChatRequest } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Invalid request body' };
+  }
+  
+  if (!body.message || typeof body.message !== 'string') {
+    return { valid: false, error: 'Message is required and must be a string' };
+  }
+  
+  if (body.message.length === 0) {
+    return { valid: false, error: 'Message cannot be empty' };
+  }
+  
+  if (body.message.length > 5000) {
+    return { valid: false, error: 'Message must be less than 5000 characters' };
+  }
+  
+  return { valid: true, data: { message: body.message } };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { message, userId } = await req.json();
-    
-    console.log('Chat request:', { message, userId });
+    // Authenticate user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userId = user.id; // Use authenticated user's ID
+
+    // Validate input
+    const body = await req.json();
+    const validation = validateInput(body);
+    
+    if (!validation.valid) {
+      return new Response(JSON.stringify({ error: validation.error }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { message } = validation.data!;
+    
+    console.log('Chat request from user:', userId, 'Message:', message.substring(0, 100));
 
     // Get user's analytics and customer data for context
     const [analyticsResult, customersResult] = await Promise.all([

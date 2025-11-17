@@ -12,12 +12,41 @@ const twilioToken = Deno.env.get('TWILIO_AUTH_TOKEN');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-interface SendWhatsAppRequest {
-  userId: string;
-  campaignName: string;
-  messageTemplate: string;
-  customerIds?: string[];
-  sendToAll?: boolean;
+// Input validation
+function validateWhatsAppInput(body: any): { valid: boolean; error?: string; data?: SendWhatsAppRequest } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Invalid request body' };
+  }
+  
+  if (!body.campaignName || typeof body.campaignName !== 'string') {
+    return { valid: false, error: 'Campaign name is required and must be a string' };
+  }
+  
+  if (body.campaignName.length > 200) {
+    return { valid: false, error: 'Campaign name must be less than 200 characters' };
+  }
+  
+  if (!body.messageTemplate || typeof body.messageTemplate !== 'string') {
+    return { valid: false, error: 'Message template is required and must be a string' };
+  }
+  
+  if (body.messageTemplate.length > 5000) {
+    return { valid: false, error: 'Message template must be less than 5000 characters' };
+  }
+  
+  if (body.customerIds && !Array.isArray(body.customerIds)) {
+    return { valid: false, error: 'Customer IDs must be an array' };
+  }
+  
+  return { 
+    valid: true, 
+    data: {
+      campaignName: body.campaignName,
+      messageTemplate: body.messageTemplate,
+      customerIds: body.customerIds,
+      sendToAll: body.sendToAll
+    }
+  };
 }
 
 serve(async (req) => {
@@ -26,11 +55,45 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, campaignName, messageTemplate, customerIds, sendToAll }: SendWhatsAppRequest = await req.json();
-    
-    console.log('WhatsApp campaign request:', { campaignName, customerCount: customerIds?.length || 'all' });
+    // Authenticate user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userId = user.id; // Use authenticated user's ID
+
+    // Validate input
+    const body = await req.json();
+    const validation = validateWhatsAppInput(body);
+    
+    if (!validation.valid) {
+      return new Response(JSON.stringify({ error: validation.error }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { campaignName, messageTemplate, customerIds, sendToAll } = validation.data!;
+    
+    console.log('WhatsApp campaign request for user:', userId, 'Campaign:', campaignName, 'Customer count:', customerIds?.length || 'all');
 
     // Fetch customers based on selection
     let customersQuery = supabase

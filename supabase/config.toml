@@ -22,25 +22,25 @@ enable_email_confirmations = false
 port = 54322
 
 [functions.sentiment-analysis]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-campaign]
-verify_jwt = false
+verify_jwt = true
 
 [functions.start-ab-test]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-sample-data]
-verify_jwt = false
+verify_jwt = true
 
 [functions.advanced-chat]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-whatsapp]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-email]
-verify_jwt = false
+verify_jwt = true
 
 [storage]
 enabled = true

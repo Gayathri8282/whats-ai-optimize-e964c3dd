@@ -1,10 +1,55 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Input validation
+interface CampaignRequest {
+  campaignType: string;
+  targetAudience: string;
+  businessInfo?: string;
+  goals?: string;
+  tone?: string;
+}
+
+function validateInput(body: any): { valid: boolean; error?: string; data?: CampaignRequest } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Invalid request body' };
+  }
+  
+  if (!body.campaignType || typeof body.campaignType !== 'string') {
+    return { valid: false, error: 'Campaign type is required and must be a string' };
+  }
+  
+  if (!body.targetAudience || typeof body.targetAudience !== 'string') {
+    return { valid: false, error: 'Target audience is required and must be a string' };
+  }
+  
+  const validCampaignTypes = ['promotional', 'announcement', 'onboarding', 'survey'];
+  if (!validCampaignTypes.includes(body.campaignType)) {
+    return { valid: false, error: 'Invalid campaign type' };
+  }
+  
+  const validAudiences = ['new', 'returning', 'vip', 'all'];
+  if (!validAudiences.includes(body.targetAudience)) {
+    return { valid: false, error: 'Invalid target audience' };
+  }
+  
+  return { 
+    valid: true, 
+    data: { 
+      campaignType: body.campaignType,
+      targetAudience: body.targetAudience,
+      businessInfo: body.businessInfo,
+      goals: body.goals,
+      tone: body.tone
+    } 
+  };
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -13,20 +58,43 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      campaignType, 
-      targetAudience, 
-      businessInfo, 
-      goals, 
-      tone 
-    } = await req.json();
+    // Authenticate user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    if (!campaignType || !targetAudience) {
-      return new Response(JSON.stringify({ error: 'Campaign type and target audience are required' }), {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate input
+    const body = await req.json();
+    const validation = validateInput(body);
+    
+    if (!validation.valid) {
+      return new Response(JSON.stringify({ error: validation.error }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    const { campaignType, targetAudience, businessInfo, goals, tone } = validation.data!;
 
     console.log('Generating campaign for:', { campaignType, targetAudience, businessInfo, goals, tone });
 
@@ -99,7 +167,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in generate-campaign function:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'Internal server error'
+      error: 'Internal server error'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
