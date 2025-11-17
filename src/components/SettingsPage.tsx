@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,8 @@ import {
   Save,
   RefreshCw,
   Download,
-  Upload
+  Upload,
+  LogOut
 } from "lucide-react";
 
 export function SettingsPage() {
@@ -53,6 +55,7 @@ export function SettingsPage() {
     }
   });
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchUserData();
@@ -113,6 +116,26 @@ export function SettingsPage() {
       toast({
         title: "Export Failed",
         description: "Failed to export data. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+      });
+      
+      navigate('/auth');
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to log out",
         variant: "destructive"
       });
     }
@@ -199,6 +222,30 @@ export function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-card border-destructive/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <LogOut className="w-5 h-5" />
+                Account Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Log out of your account to switch to a different account or end your session.
+                </p>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleLogout}
+                  className="w-full sm:w-auto"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Log Out
+                </Button>
               </div>
             </CardContent>
           </Card>
