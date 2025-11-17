@@ -151,11 +151,30 @@ export function ABTesting() {
         { event: '*', schema: 'public', table: 'ab_test_variations' },
         () => fetchABTests()
       )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'click_events' },
+        () => fetchABTests()
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'page_visits' },
+        () => fetchABTests()
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [user]);
+
+  // Poll for real-time metrics every 10 seconds
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      fetchABTests();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [user]);
 
   const fetchCampaigns = async () => {
@@ -192,6 +211,31 @@ export function ABTesting() {
     }
   };
 
+  // Fetch real-time metrics for variations
+  const fetchRealTimeMetrics = async (variationId: string) => {
+    try {
+      const [clicksResult, visitsResult] = await Promise.all([
+        supabase
+          .from('click_events')
+          .select('*', { count: 'exact', head: true })
+          .eq('variation_id', variationId),
+        supabase
+          .from('page_visits')
+          .select('*', { count: 'exact', head: true })
+          .eq('variation_id', variationId)
+      ]);
+
+      const clickedCount = clicksResult.count || 0;
+      const openedCount = visitsResult.count || 0;
+      const ctr = openedCount > 0 ? (clickedCount / openedCount) : 0;
+
+      return { clickedCount, openedCount, ctr };
+    } catch (error) {
+      console.error('Error fetching real-time metrics:', error);
+      return { clickedCount: 0, openedCount: 0, ctr: 0 };
+    }
+  };
+
   const fetchABTests = async () => {
     try {
       // Fetch all A/B tests without campaign filter
@@ -218,10 +262,23 @@ export function ABTesting() {
               .eq('ab_test_id', test.id)
           ]);
 
+          // Fetch real-time metrics for each variation
+          const variationsWithMetrics = await Promise.all(
+            (variationsResult.data || []).map(async (variation) => {
+              const metrics = await fetchRealTimeMetrics(variation.id);
+              return {
+                ...variation,
+                clicked_count: metrics.clickedCount,
+                opened_count: metrics.openedCount,
+                ctr: metrics.ctr
+              };
+            })
+          );
+
           return {
             ...test,
             campaign: campaignResult.data,
-            variations: variationsResult.data || []
+            variations: variationsWithMetrics
           };
         })
       );
