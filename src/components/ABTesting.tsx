@@ -93,6 +93,7 @@ export function ABTesting() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [abTests, setAbTests] = useState<ABTest[]>([]);
+  const [realtimeTest, setRealtimeTest] = useState<ABTest | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [selectedTest, setSelectedTest] = useState<ABTest | null>(null);
   const [variants, setVariants] = useState<string[]>(['', '', '']);
@@ -166,13 +167,30 @@ export function ABTesting() {
     };
   }, [user]);
 
-  // Poll for real-time metrics every 10 seconds
+  // Poll for real-time metrics every 10 seconds for regular tests
   useEffect(() => {
     if (!user) return;
 
     const interval = setInterval(() => {
       fetchABTests();
     }, 10000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Poll for the real-time test every 5 seconds
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(async () => {
+      const rtTest = await fetchRealtimeTest();
+      if (rtTest) {
+        setAbTests(prev => {
+          const withoutRt = prev.filter(t => t.id !== rtTest.id);
+          return [rtTest, ...withoutRt];
+        });
+      }
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [user]);
@@ -236,12 +254,76 @@ export function ABTesting() {
     }
   };
 
+  // Fetch the specific real-time test with predefined IDs
+  const fetchRealtimeTest = async () => {
+    try {
+      const REALTIME_TEST_ID = '2d624651-8e3b-4b23-97dc-0bceb54157b9';
+      const VARIATION_A_ID = 'd987f4aa-7067-49a1-8c99-8c921562ab83';
+      const VARIATION_B_ID = '00e41b50-2c0f-4b05-a890-a0f79a58bdc0';
+
+      // Fetch the test
+      const { data: testData, error: testError } = await supabase
+        .from('ab_tests')
+        .select('*')
+        .eq('id', REALTIME_TEST_ID)
+        .single();
+
+      if (testError || !testData) {
+        console.log('Real-time test not found');
+        return null;
+      }
+
+      // Fetch campaign
+      const { data: campaignData } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', testData.campaign_id)
+        .single();
+
+      // Fetch both variations
+      const { data: variationsData } = await supabase
+        .from('ab_test_variations')
+        .select('*')
+        .in('id', [VARIATION_A_ID, VARIATION_B_ID]);
+
+      // Get real-time metrics for each variation
+      const variationsWithMetrics = await Promise.all(
+        (variationsData || []).map(async (variation) => {
+          const metrics = await fetchRealTimeMetrics(variation.id);
+          return {
+            ...variation,
+            clicked_count: metrics.clickedCount,
+            opened_count: metrics.openedCount,
+            ctr: metrics.ctr,
+            sent_count: 0,
+            conversion_count: 0
+          };
+        })
+      );
+
+      const formattedTest: ABTest = {
+        ...testData,
+        name: 'Jewelry Real-Time Test',
+        campaign: campaignData,
+        variations: variationsWithMetrics
+      };
+
+      return formattedTest;
+    } catch (error) {
+      console.error('Error fetching real-time test:', error);
+      return null;
+    }
+  };
+
   const fetchABTests = async () => {
     try {
-      // Fetch all A/B tests without campaign filter
+      const REALTIME_TEST_ID = '2d624651-8e3b-4b23-97dc-0bceb54157b9';
+      
+      // Fetch all A/B tests EXCEPT the real-time one (to avoid duplicates)
       const { data: testsData, error: testsError } = await supabase
         .from("ab_tests")
         .select("*")
+        .neq('id', REALTIME_TEST_ID)
         .order("created_at", { ascending: false });
 
       if (testsError) throw testsError;
@@ -283,9 +365,13 @@ export function ABTesting() {
         })
       );
 
-      setAbTests(formattedTests);
-      if (formattedTests.length > 0 && !selectedTest) {
-        setSelectedTest(formattedTests[0]);
+      // Fetch and merge the real-time test
+      const rtTest = await fetchRealtimeTest();
+      const allTests = rtTest ? [rtTest, ...formattedTests] : formattedTests;
+
+      setAbTests(allTests);
+      if (allTests.length > 0 && !selectedTest) {
+        setSelectedTest(allTests[0]);
       }
     } catch (error) {
       console.error('Error fetching A/B tests:', error);
