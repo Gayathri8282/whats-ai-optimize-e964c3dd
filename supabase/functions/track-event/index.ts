@@ -5,9 +5,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Variation ID mapping for jewelry real-time A/B test
+const VARIATION_MAP: Record<string, string> = {
+  'A': 'd987f4aa-7067-49a1-8c99-8c921562ab83',
+  'B': '00e41b50-2c0f-4b05-a890-a0f79a58bdc0'
+};
+
 interface PageVisitEvent {
   eventType: 'page_visit';
   pagePath: string;
+  variant?: string;
   variationId?: string;
   sessionId?: string;
   utmSource?: string;
@@ -24,6 +31,7 @@ interface ClickEvent {
   buttonId: string;
   buttonText?: string;
   pagePath: string;
+  variant?: string;
   variationId?: string;
   sessionId?: string;
   utmSource?: string;
@@ -46,12 +54,17 @@ Deno.serve(async (req) => {
     const event: PageVisitEvent | ClickEvent = await req.json();
     console.log('Received tracking event:', event);
 
+    // Map variant (A/B) to variation_id if variant is provided
+    const variationId = event.variant && VARIATION_MAP[event.variant] 
+      ? VARIATION_MAP[event.variant] 
+      : event.variationId || null;
+
     if (event.eventType === 'page_visit') {
       const { error } = await supabase
         .from('page_visits')
         .insert({
           page_path: event.pagePath,
-          variation_id: event.variationId || null,
+          variation_id: variationId,
           session_id: event.sessionId || null,
           utm_source: event.utmSource || null,
           utm_medium: event.utmMedium || null,
@@ -84,7 +97,7 @@ Deno.serve(async (req) => {
           button_id: event.buttonId,
           button_text: event.buttonText || null,
           page_path: event.pagePath,
-          variation_id: event.variationId || null,
+          variation_id: variationId,
           session_id: event.sessionId || null,
           utm_source: event.utmSource || null,
           utm_medium: event.utmMedium || null,
