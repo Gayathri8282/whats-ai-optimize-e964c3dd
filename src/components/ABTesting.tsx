@@ -178,7 +178,7 @@ export function ABTesting() {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Poll for the real-time test every 5 seconds
+  // Poll for the real-time test every 10 seconds
   useEffect(() => {
     if (!user) return;
 
@@ -190,7 +190,7 @@ export function ABTesting() {
           return [rtTest, ...withoutRt];
         });
       }
-    }, 5000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [user]);
@@ -245,7 +245,7 @@ export function ABTesting() {
 
       const clickedCount = clicksResult.count || 0;
       const openedCount = visitsResult.count || 0;
-      const ctr = openedCount > 0 ? (clickedCount / openedCount) : 0;
+      const ctr = openedCount > 0 ? ((clickedCount / openedCount) * 100) : 0;
 
       return { clickedCount, openedCount, ctr };
     } catch (error) {
@@ -1310,7 +1310,7 @@ export function ABTesting() {
                                     <p className="text-muted-foreground">Clicked</p>
                                     <p className="font-semibold text-lg text-green-600">{variation.clicked_count}</p>
                                     <p className="text-xs text-muted-foreground">
-                                      {variation.sent_count > 0 ? ((variation.clicked_count / variation.sent_count) * 100).toFixed(1) : 0}% CTR
+                                      {variation.opened_count > 0 ? ((variation.clicked_count / variation.opened_count) * 100).toFixed(1) : 0}% CTR
                                     </p>
                                   </div>
                                   <div className="text-center">
