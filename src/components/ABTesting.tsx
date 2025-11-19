@@ -254,22 +254,19 @@ export function ABTesting() {
     }
   };
 
-  // Fetch the specific real-time test with predefined IDs
+  // Fetch the latest A/B test dynamically
   const fetchRealtimeTest = async () => {
     try {
-      const REALTIME_TEST_ID = '2d624651-8e3b-4b23-97dc-0bceb54157b9';
-      const VARIATION_A_ID = 'd987f4aa-7067-49a1-8c99-8c921562ab83';
-      const VARIATION_B_ID = '00e41b50-2c0f-4b05-a890-a0f79a58bdc0';
-
-      // Fetch the test
+      // Fetch the latest test (most recently created)
       const { data: testData, error: testError } = await supabase
         .from('ab_tests')
         .select('*')
-        .eq('id', REALTIME_TEST_ID)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (testError || !testData) {
-        console.log('Real-time test not found');
+        console.log('No A/B test found');
         return null;
       }
 
@@ -280,11 +277,11 @@ export function ABTesting() {
         .eq('id', testData.campaign_id)
         .single();
 
-      // Fetch both variations
+      // Fetch all variations for this test
       const { data: variationsData } = await supabase
         .from('ab_test_variations')
         .select('*')
-        .in('id', [VARIATION_A_ID, VARIATION_B_ID]);
+        .eq('ab_test_id', testData.id);
 
       // Get real-time metrics for each variation
       const variationsWithMetrics = await Promise.all(
@@ -303,27 +300,23 @@ export function ABTesting() {
 
       const formattedTest: ABTest = {
         ...testData,
-        name: 'Jewelry Real-Time Test',
         campaign: campaignData,
         variations: variationsWithMetrics
       };
 
       return formattedTest;
     } catch (error) {
-      console.error('Error fetching real-time test:', error);
+      console.error('Error fetching latest test:', error);
       return null;
     }
   };
 
   const fetchABTests = async () => {
     try {
-      const REALTIME_TEST_ID = '2d624651-8e3b-4b23-97dc-0bceb54157b9';
-      
-      // Fetch all A/B tests EXCEPT the real-time one (to avoid duplicates)
+      // Fetch all A/B tests
       const { data: testsData, error: testsError } = await supabase
         .from("ab_tests")
         .select("*")
-        .neq('id', REALTIME_TEST_ID)
         .order("created_at", { ascending: false });
 
       if (testsError) throw testsError;
@@ -365,13 +358,9 @@ export function ABTesting() {
         })
       );
 
-      // Fetch and merge the real-time test
-      const rtTest = await fetchRealtimeTest();
-      const allTests = rtTest ? [rtTest, ...formattedTests] : formattedTests;
-
-      setAbTests(allTests);
-      if (allTests.length > 0 && !selectedTest) {
-        setSelectedTest(allTests[0]);
+      setAbTests(formattedTests);
+      if (formattedTests.length > 0 && !selectedTest) {
+        setSelectedTest(formattedTests[0]);
       }
     } catch (error) {
       console.error('Error fetching A/B tests:', error);

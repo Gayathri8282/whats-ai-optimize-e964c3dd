@@ -133,22 +133,21 @@ export function ABTestManager() {
 
   const fetchRealtimeTest = async () => {
     try {
-      const REALTIME_TEST_ID = '2d624651-8e3b-4b23-97dc-0bceb54157b9';
-      const VARIATION_A_ID = 'd987f4aa-7067-49a1-8c99-8c921562ab83';
-      const VARIATION_B_ID = '00e41b50-2c0f-4b05-a890-a0f79a58bdc0';
-
+      // Fetch the latest test (most recently created)
       const { data: testData, error: testError } = await supabase
         .from('ab_tests')
         .select('*')
-        .eq('id', REALTIME_TEST_ID)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (testError || !testData) return;
 
+      // Fetch all variations for this test
       const { data: variationsData } = await supabase
         .from('ab_test_variations')
         .select('*')
-        .in('id', [VARIATION_A_ID, VARIATION_B_ID]);
+        .eq('ab_test_id', testData.id);
 
       const variationsWithMetrics = await Promise.all(
         (variationsData || []).map(async (variation) => {
@@ -166,24 +165,22 @@ export function ABTestManager() {
 
       const formattedTest: ABTest = {
         ...testData,
-        name: 'Jewelry Real-Time Test',
         variations: variationsWithMetrics
       };
 
       setAbTests(prev => {
-        const withoutRt = prev.filter(t => t.id !== REALTIME_TEST_ID);
-        return [formattedTest, ...withoutRt];
+        // Remove any existing instance of this test and add updated version at top
+        const withoutCurrent = prev.filter(t => t.id !== testData.id);
+        return [formattedTest, ...withoutCurrent];
       });
     } catch (error) {
-      console.error('Error fetching real-time test:', error);
+      console.error('Error fetching latest test:', error);
     }
   };
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const REALTIME_TEST_ID = '2d624651-8e3b-4b23-97dc-0bceb54157b9';
-      
       // Fetch campaigns
       const { data: campaignsData, error: campaignsError } = await supabase
         .from('campaigns')
@@ -193,7 +190,7 @@ export function ABTestManager() {
       if (campaignsError) throw campaignsError;
       setCampaigns(campaignsData || []);
 
-      // Fetch A/B tests EXCEPT the real-time one
+      // Fetch all A/B tests
       const { data: abTestsData, error: abTestsError } = await supabase
         .from('ab_tests')
         .select(`
@@ -207,7 +204,6 @@ export function ABTestManager() {
           created_at,
           updated_at
         `)
-        .neq('id', REALTIME_TEST_ID)
         .order('created_at', { ascending: false });
       
       if (abTestsError) throw abTestsError;
@@ -229,7 +225,7 @@ export function ABTestManager() {
       
       setAbTests(testsWithVariations as ABTest[]);
       
-      // Fetch and add the real-time test
+      // Fetch and update metrics for the latest test
       await fetchRealtimeTest();
     } catch (error) {
       console.error('Error fetching data:', error);
