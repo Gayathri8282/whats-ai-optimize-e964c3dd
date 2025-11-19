@@ -285,18 +285,27 @@ export function ABTesting() {
 
       // Get real-time metrics for each variation
       const variationsWithMetrics = await Promise.all(
-        (variationsData || []).map(async (variation) => {
-          const metrics = await fetchRealTimeMetrics(variation.id);
-          return {
-            ...variation,
-            clicked_count: metrics.clickedCount,
-            opened_count: metrics.openedCount,
-            ctr: metrics.ctr,
-            sent_count: 0,
-            conversion_count: 0
-          };
-        })
-      );
+      (variationsData || []).map(async (variation) => {
+    const metrics = await fetchRealTimeMetrics(variation.id);
+
+    // Apply real-time overrides
+    const opened = metrics.openedCount;
+    const clicked = metrics.clickedCount;
+
+    return {
+      ...variation,
+      opened_count: opened,
+      clicked_count: clicked,
+
+      // NEW RULES
+      sent_count: opened,               // Sent = Opened
+      conversion_count: 0,              // No conversions tracked
+      conversion_rate: 0,
+      ctr: opened > 0 ? (clicked / opened) * 100 : 0
+    };
+  })
+);
+
 
       const formattedTest: ABTest = {
         ...testData,
@@ -718,7 +727,10 @@ export function ABTesting() {
     
     return selectedTest.variations.map(variation => {
       // Calculate real CTR from actual counts
-      const actualCtr = variation.sent_count > 0 ? (variation.clicked_count / variation.sent_count) * 100 : 0;
+      const actualCtr = variation.opened_count > 0 
+  ? (variation.clicked_count / variation.opened_count) * 100 
+  : 0;
+
       const openRate = variation.sent_count > 0 ? (variation.opened_count / variation.sent_count) * 100 : 0;
       const conversionRate = variation.clicked_count > 0 ? (variation.conversion_count / variation.clicked_count) * 100 : 0;
       
@@ -1302,13 +1314,19 @@ export function ABTesting() {
                                       {variation.opened_count > 0 ? ((variation.clicked_count / variation.opened_count) * 100).toFixed(1) : 0}% CTR
                                     </p>
                                   </div>
-                                  <div className="text-center">
-                                    <p className="text-muted-foreground">Converted</p>
-                                    <p className="font-semibold text-lg text-purple-600">{variation.conversion_count}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {variation.clicked_count > 0 ? ((variation.conversion_count / variation.clicked_count) * 100).toFixed(1) : 0}%
-                                    </p>
-                                  </div>
+                                  {/* Hide conversions ONLY for the jewelry real-time test */}
+{selectedTest.id !== "2d624651-8e3b-4b23-97dc-0bceb54157b9" && (
+  <div className="text-center">
+    <p className="text-muted-foreground">Converted</p>
+    <p className="font-semibold text-lg text-purple-600">{variation.conversion_count}</p>
+    <p className="text-xs text-muted-foreground">
+      {variation.clicked_count > 0
+        ? ((variation.conversion_count / variation.clicked_count) * 100).toFixed(1)
+        : 0}%
+    </p>
+  </div>
+)}
+
                                 </div>
                               
                               <div className="mt-4 space-y-2">
