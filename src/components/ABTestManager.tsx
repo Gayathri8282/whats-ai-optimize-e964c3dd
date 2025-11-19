@@ -96,13 +96,13 @@ export function ABTestManager() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Auto-refresh for real-time test every 5 seconds
+  // Auto-refresh for real-time test every 10 seconds
   useEffect(() => {
     if (!user) return;
 
     const interval = setInterval(() => {
       fetchRealtimeTest();
-    }, 5000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [user]);
@@ -122,7 +122,7 @@ export function ABTestManager() {
 
       const clickedCount = clicksResult.count || 0;
       const openedCount = visitsResult.count || 0;
-      const ctr = openedCount > 0 ? (clickedCount / openedCount) : 0;
+      const ctr = openedCount > 0 ? ((clickedCount / openedCount) * 100) : 0;
 
       return { clickedCount, openedCount, ctr };
     } catch (error) {
