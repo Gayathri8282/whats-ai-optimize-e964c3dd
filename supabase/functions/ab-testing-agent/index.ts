@@ -129,7 +129,7 @@ Return JSON with recommendations for traffic allocation and next steps.`;
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } catch (parseError) {
-      console.log('JSON parse error:', parseError.message);
+      console.log('JSON parse error:', parseError instanceof Error ? parseError.message : String(parseError));
       // If JSON parsing fails, return the raw content
       return new Response(JSON.stringify({ 
         variants: [generatedContent], 
@@ -141,7 +141,7 @@ Return JSON with recommendations for traffic allocation and next steps.`;
     }
   } catch (error) {
     console.error('Error in ab-testing-agent function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

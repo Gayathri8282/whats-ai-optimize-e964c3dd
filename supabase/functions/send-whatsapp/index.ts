@@ -13,6 +13,12 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 // Input validation
+interface SendWhatsAppRequest {
+  campaignName: string;
+  recipients: Array<{ phone: string; name: string; customerId: string }>;
+  messageTemplate: string;
+}
+
 function validateWhatsAppInput(body: any): { valid: boolean; error?: string; data?: SendWhatsAppRequest } {
   if (!body || typeof body !== 'object') {
     return { valid: false, error: 'Invalid request body' };

@@ -12,6 +12,12 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 // Input validation  
+interface SendEmailRequest {
+  campaignName: string;
+  recipients: Array<{ email: string; name: string; customerId: string }>;
+  messageTemplate: string;
+}
+
 function validateEmailInput(body: any): { valid: boolean; error?: string; data?: SendEmailRequest } {
   if (!body || typeof body !== 'object') {
     return { valid: false, error: 'Invalid request body' };

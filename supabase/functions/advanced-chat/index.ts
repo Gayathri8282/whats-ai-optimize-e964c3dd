@@ -176,7 +176,7 @@ If the user has no data yet, guide them on getting started with the platform's f
       const data = await response.json();
       aiResponse = data.choices[0].message.content;
     } catch (error) {
-      console.error('Groq error, using fallback:', error.message);
+      console.error('Groq error, using fallback:', error instanceof Error ? error.message : String(error));
       
       // Enhanced intelligent fallback responses
       const lowerMessage = message.toLowerCase();
@@ -369,7 +369,7 @@ ${context.totalCustomers === 0 ? 'Want to get started? Try generating sample cus
   } catch (error) {
     console.error('Error in advanced-chat function:', error);
     return new Response(JSON.stringify({ 
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
       response: "I'm experiencing technical difficulties. Please try again in a moment."
     }), {
       status: 500,

@@ -264,7 +264,7 @@ serve(async (req) => {
       
       for (let i = 0; i < sortedResults.length; i++) {
         const result = sortedResults[i];
-        const update: any = { id: result.id };
+        const update: any = {};
         
         if (i < sentCount) {
           update.message_sent = true;
@@ -362,7 +362,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in start-ab-test function:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'Internal server error'
+      error: error instanceof Error ? error.message : 'Internal server error'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
