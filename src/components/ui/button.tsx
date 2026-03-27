@@ -5,28 +5,27 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-smooth focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-card hover:bg-primary/90 hover:shadow-elegant",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 hover:shadow-card",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        // Enhanced variants for marketing platform
-        hero: "bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-elegant hover:scale-105 transition-bounce font-semibold",
-        success: "bg-gradient-success text-success-foreground shadow-card hover:shadow-elegant hover:scale-105 transition-bounce",
-        warning: "bg-warning text-warning-foreground shadow-card hover:bg-warning/90 hover:shadow-elegant",
-        danger: "bg-danger text-danger-foreground shadow-card hover:bg-danger/90 hover:shadow-elegant",
-        glass: "glass text-foreground hover:bg-card/80 border-border/50 backdrop-blur-xl",
-        premium: "bg-gradient-hero text-primary-foreground shadow-glow hover:shadow-elegant hover:scale-105 transition-bounce font-semibold text-base",
+        hero: "bg-primary text-primary-foreground hover:bg-primary/90 font-semibold",
+        success: "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] hover:opacity-90",
+        warning: "bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:opacity-90",
+        danger: "bg-[hsl(var(--danger))] text-[hsl(var(--danger-foreground))] hover:opacity-90",
+        glass: "bg-background/80 backdrop-blur text-foreground border border-border hover:bg-accent",
+        premium: "bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-base",
       },
       size: {
         default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
+        sm: "h-9 rounded-md px-3 text-sm",
+        lg: "h-12 rounded-lg px-6",
         icon: "h-10 w-10",
       },
     },
